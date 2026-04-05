@@ -521,87 +521,55 @@ body.dark #themeToggle {
     border-color: #555;
 }
 
-/* ---- Responsive: small devices ---- */
-@media (max-width: 900px) {
-    #appBody {
-        flex-direction: column;
-    }
-
-    #sidebar {
-        width: 100%;
-        max-height: 35vh;
-        border-right: none;
-        border-bottom: 1px solid #ddd;
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: 8px;
-        overflow-y: auto;
-    }
-
-    #sidebar .panel {
-        flex: 1 1 200px;
-        min-width: 180px;
-    }
-
-    #rightSidebar {
-        width: 100%;
-        max-height: 30vh;
-        border-left: none;
-        border-top: 1px solid #ddd;
-    }
-
-    #main {
-        padding: 8px;
-    }
-
-    #timeline {
-        width: 200px;
-    }
-
-    #playbar {
-        gap: 6px;
-        padding: 6px 10px;
-    }
-
-    #toolbar {
-        padding: 4px 8px;
-        gap: 4px;
-    }
-
-    .toolbar-divider {
-        height: 18px;
-    }
+/* ---- Small screen warning ---- */
+#smallScreenWarning {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: #ffffff;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 32px;
 }
 
-@media (max-width: 600px) {
-    #sidebar {
-        max-height: 40vh;
-        padding: 8px;
+.warning-box {
+    max-width: 400px;
+}
+
+.warning-box h2 {
+    font-size: 22px;
+    color: #e94560;
+    margin: 16px 0 8px;
+}
+
+.warning-box p {
+    font-size: 15px;
+    color: #555;
+    line-height: 1.5;
+}
+
+body.dark #smallScreenWarning {
+    background: #1a1a2e;
+}
+
+body.dark .warning-box h2 {
+    color: #e94560;
+}
+
+body.dark .warning-box p {
+    color: #aaa;
+}
+
+@media (max-width: 1023px) {
+    #smallScreenWarning {
+        display: flex;
     }
 
-    #sidebar .panel {
-        flex: 1 1 100%;
-    }
-
-    #rightSidebar {
-        max-height: 25vh;
-        padding: 8px;
-    }
-
-    #toolbar {
-        font-size: 11px;
-    }
-
-    .btn-sm {
-        padding: 3px 6px;
-        font-size: 11px;
-    }
-
-    .toolbar-divider {
-        display: none;
-    }
-
-    #timeline {
-        width: 140px;
+    #toolbar,
+    #multiSegHint,
+    #appBody {
+        display: none !important;
     }
 }
