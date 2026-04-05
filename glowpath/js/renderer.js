@@ -187,19 +187,28 @@ function renderFrame(t) {
             ctx.lineTo(px, py);
             ctx.stroke();
         } else if (shape.type === 'curve') {
-            // Particle trail along curve
+            // Continuous stroke trail along curve
             const trailFrac = 0.1;
-            const steps = 20;
-            for (let i = 0; i < steps; i++) {
+            const steps = 50;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.setLineDash([]);
+            for (let i = 0; i < steps - 1; i++) {
                 const frac = i / steps;
+                const fracNext = (i + 1) / steps;
                 const sign = (a.direction === 'inward') ? 1 : -1;
                 const tp = clamp(effProgress + sign * trailFrac * (1 - frac), 0, 1);
+                const tpNext = clamp(effProgress + sign * trailFrac * (1 - fracNext), 0, 1);
                 const tpos = curvePos(shape, tp);
-                const alpha = 0.25 * frac;
-                ctx.fillStyle = `rgba(${rc},${gc},${bc},${alpha})`;
+                const tposNext = curvePos(shape, tpNext);
+                const alpha = 0.35 * fracNext;
+                const lw = a.pointerSize * (0.3 + 0.9 * fracNext);
+                ctx.strokeStyle = `rgba(${rc},${gc},${bc},${alpha})`;
+                ctx.lineWidth = lw;
                 ctx.beginPath();
-                ctx.arc(tpos.x, tpos.y, a.pointerSize * (0.4 + 0.6 * frac), 0, Math.PI * 2);
-                ctx.fill();
+                ctx.moveTo(tpos.x, tpos.y);
+                ctx.lineTo(tposNext.x, tposNext.y);
+                ctx.stroke();
             }
         } else {
             // Arc/rect trail
@@ -358,17 +367,26 @@ function renderFrameWith(c, t, opts) {
             c.stroke();
         } else if (shape.type === 'curve') {
             const trailFrac = 0.1;
-            const steps = 20;
-            for (let i = 0; i < steps; i++) {
+            const steps = 50;
+            c.lineCap = 'round';
+            c.lineJoin = 'round';
+            c.setLineDash([]);
+            for (let i = 0; i < steps - 1; i++) {
                 const frac = i / steps;
+                const fracNext = (i + 1) / steps;
                 const sign = (a.direction === 'inward') ? 1 : -1;
                 const tp = clamp(effProgress + sign * trailFrac * (1 - frac), 0, 1);
+                const tpNext = clamp(effProgress + sign * trailFrac * (1 - fracNext), 0, 1);
                 const tpos = curvePos(shape, tp);
-                const alpha = 0.25 * frac;
-                c.fillStyle = `rgba(${rc},${gc},${bc},${alpha})`;
+                const tposNext = curvePos(shape, tpNext);
+                const alpha = 0.35 * fracNext;
+                const lw = a.pointerSize * (0.3 + 0.9 * fracNext);
+                c.strokeStyle = `rgba(${rc},${gc},${bc},${alpha})`;
+                c.lineWidth = lw;
                 c.beginPath();
-                c.arc(tpos.x, tpos.y, a.pointerSize * (0.4 + 0.6 * frac), 0, Math.PI * 2);
-                c.fill();
+                c.moveTo(tpos.x, tpos.y);
+                c.lineTo(tposNext.x, tposNext.y);
+                c.stroke();
             }
         } else {
             const trailFrac = 0.08;
