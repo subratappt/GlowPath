@@ -20,7 +20,7 @@ body {
 /* Sidebar */
 #sidebar {
     width: 320px;
-    background: #151c2d;
+    background: #343b55;
     padding: 16px;
     overflow-y: auto;
     display: flex;
@@ -36,7 +36,7 @@ body {
 }
 
 .panel {
-    background: #1a1a2e;
+    background: #28283d;
     border: 1px solid #0f3460;
     border-radius: 8px;
     padding: 12px;
