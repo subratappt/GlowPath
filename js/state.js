@@ -4,7 +4,17 @@
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
-const W = canvas.width, H = canvas.height;
+let W = canvas.width, H = canvas.height;
+
+window.setCanvasResolution = function (size) {
+    size = parseInt(size);
+    canvas.width = size;
+    canvas.height = size;
+    W = size;
+    H = size;
+    resizeCanvas();
+    renderFrame(getCurrentTime());
+};
 
 // ---- State ----
 let shapes = [];       // {type, id, ...params}
@@ -81,6 +91,147 @@ function redo() {
     refreshAnimTargets();
     renderFrame(getCurrentTime());
 }
+
+// ---- Project Save / Open (.gp) ----
+function _serializeShape(s) {
+    const o = Object.assign({}, s);
+    // Convert image element to data URL for serialization
+    if (s.type === 'image' && s.image) {
+        const c = document.createElement('canvas');
+        c.width = s.image.naturalWidth || s.image.width;
+        c.height = s.image.naturalHeight || s.image.height;
+        c.getContext('2d').drawImage(s.image, 0, 0);
+        o._imageDataURL = c.toDataURL('image/png');
+        delete o.image;
+    }
+    // Convert text rendered image to data URL
+    if (s.type === 'text' && s.image) {
+        const c = document.createElement('canvas');
+        c.width = s.image.naturalWidth || s.image.width;
+        c.height = s.image.naturalHeight || s.image.height;
+        c.getContext('2d').drawImage(s.image, 0, 0);
+        o._textImageDataURL = c.toDataURL('image/png');
+        delete o.image;
+    }
+    return o;
+}
+
+function _deserializeShape(o) {
+    const s = Object.assign({}, o);
+    if (o._imageDataURL) {
+        const img = new Image();
+        img.src = o._imageDataURL;
+        s.image = img;
+        delete s._imageDataURL;
+    }
+    if (o._textImageDataURL) {
+        const img = new Image();
+        img.src = o._textImageDataURL;
+        s.image = img;
+        delete s._textImageDataURL;
+    }
+    return s;
+}
+
+window.saveProject = function () {
+    const project = {
+        version: 1,
+        canvas: { width: W, height: H },
+        bgColor: document.getElementById('bgColor').value,
+        shapes: shapes.map(_serializeShape),
+        animations: animations.slice(),
+        timeline: {
+            duration: parseFloat(document.getElementById('totalDuration').value),
+            fps: parseInt(document.getElementById('fps').value)
+        },
+        counters: { shapeId: shapeIdCounter, animId: animIdCounter }
+    };
+    const nameInput = document.getElementById('projectName');
+    let name = (nameInput.value || '').trim();
+    if (!name) {
+        name = prompt('Enter project name:', 'glowpath');
+        if (!name) return;
+        nameInput.value = name;
+    }
+    const json = JSON.stringify(project, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name + '.gp';
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
+window.openProject = function (input) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        try {
+            const project = JSON.parse(e.target.result);
+            if (!project.version || !project.shapes) throw new Error('Invalid .gp file');
+
+            // Restore canvas resolution
+            const size = project.canvas ? project.canvas.width : 1024;
+            canvas.width = size;
+            canvas.height = size;
+            W = size;
+            H = size;
+            const resSel = document.getElementById('canvasResolution');
+            // Set dropdown if matching option exists, else add one
+            let found = false;
+            for (const opt of resSel.options) {
+                if (parseInt(opt.value) === size) { opt.selected = true; found = true; break; }
+            }
+            if (!found) {
+                const opt = document.createElement('option');
+                opt.value = size; opt.textContent = size; opt.selected = true;
+                resSel.appendChild(opt);
+            }
+
+            // Restore BG color
+            if (project.bgColor) {
+                document.getElementById('bgColor').value = project.bgColor;
+                document.getElementById('bgColorHex').textContent = project.bgColor;
+            }
+
+            // Restore shapes (images load async but render on next frame)
+            shapes = project.shapes.map(_deserializeShape);
+            shapeIdCounter = project.counters ? project.counters.shapeId : shapes.length;
+
+            // Restore animations
+            animations = project.animations || [];
+            animIdCounter = project.counters ? project.counters.animId : animations.length;
+
+            // Restore timeline
+            if (project.timeline) {
+                document.getElementById('totalDuration').value = project.timeline.duration;
+                document.getElementById('fps').value = project.timeline.fps;
+                document.getElementById('timeline').max = project.timeline.duration * 1000;
+            }
+
+            // Reset undo/redo
+            _undoStack = [];
+            _redoStack = [];
+            selectedShapeId = null;
+            const selPanel = document.getElementById('selectPanel');
+            if (selPanel) selPanel.style.display = 'none';
+
+            // Refresh UI
+            refreshShapeList();
+            refreshAnimTargets();
+            refreshAnimList();
+            resizeCanvas();
+            // Slight delay so images can load
+            setTimeout(() => renderFrame(0), 100);
+        } catch (err) {
+            alert('Failed to open project: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+    input.value = ''; // reset so same file can be re-opened
+};
 
 // ---- Helpers ----
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }

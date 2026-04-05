@@ -2,6 +2,10 @@
 // GlowPath – Export (WebM & GIF) + Snapshot
 // ============================================================
 
+function getProjectName() {
+    return (document.getElementById('projectName').value || 'glowpath').trim() || 'glowpath';
+}
+
 // ---- Snapshot ----
 window.saveSnapshot = function (format) {
     const t = getCurrentTime();
@@ -21,7 +25,7 @@ window.saveSnapshot = function (format) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `glowpath-snapshot.svg`;
+        a.download = `${getProjectName()}-snapshot.svg`;
         a.click();
         URL.revokeObjectURL(url);
     } else {
@@ -30,7 +34,7 @@ window.saveSnapshot = function (format) {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `glowpath-snapshot.${format}`;
+            a.download = `${getProjectName()}-snapshot.${format}`;
             a.click();
             URL.revokeObjectURL(url);
         }, mimeType, 0.95);
@@ -40,11 +44,107 @@ window.saveSnapshot = function (format) {
 window.doExport = function () {
     const format = document.getElementById('exportFormat').value;
     if (format === 'webm') exportWebM();
+    else if (format === 'mp4') exportMP4();
     else exportGIF();
 };
 
 function getExportScale() {
     return parseInt(document.getElementById('exportScale').value);
+}
+
+// ---- MP4 Export (H.264, broad compatibility) ----
+function exportMP4() {
+    if (animations.length === 0) return alert('Add at least one animation first.');
+
+    // Check browser support for MP4 recording
+    let mimeType = '';
+    const candidates = [
+        'video/mp4;codecs=avc1',
+        'video/mp4;codecs=avc1.42E01E',
+        'video/mp4',
+    ];
+    for (const m of candidates) {
+        if (MediaRecorder.isTypeSupported(m)) { mimeType = m; break; }
+    }
+    if (!mimeType) {
+        // Fallback: export as WebM and alert user
+        alert('Your browser does not support MP4 recording. Exporting as WebM instead.\nYou can convert WebM to MP4 using free tools like FFmpeg or CloudConvert.');
+        return exportWebM();
+    }
+
+    exportCancelled = false;
+    const overlay = document.getElementById('exportOverlay');
+    overlay.classList.add('show');
+    document.getElementById('exportTitle').textContent = 'Exporting MP4\u2026';
+    const progressEl = document.getElementById('exportProgress');
+    const status = document.getElementById('exportStatus');
+
+    const fps = getFPS();
+    const duration = getTotalDuration();
+    const totalFrames = Math.ceil(duration * fps);
+    const scale = getExportScale();
+
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = scale;
+    offCanvas.height = scale;
+    const offCtx = offCanvas.getContext('2d');
+
+    const stream = offCanvas.captureStream(0);
+    const chunks = [];
+    const frameInterval = 1000 / fps;
+
+    const recorder = new MediaRecorder(stream, {
+        mimeType: mimeType,
+        videoBitsPerSecond: 10_000_000
+    });
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/mp4' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = getProjectName() + '-animation.mp4';
+        a.click();
+        URL.revokeObjectURL(url);
+        overlay.classList.remove('show');
+    };
+    recorder.start();
+
+    let frameIdx = 0;
+
+    function nextFrame() {
+        if (exportCancelled) {
+            recorder.stop();
+            overlay.classList.remove('show');
+            return;
+        }
+        if (frameIdx >= totalFrames) {
+            status.textContent = 'Finalizing\u2026';
+            recorder.stop();
+            return;
+        }
+
+        const t = (frameIdx / totalFrames) * duration;
+        if (scale !== W) {
+            offCtx.save();
+            offCtx.scale(scale / W, scale / H);
+            renderFrameWith(offCtx, t, { noGrid: true });
+            offCtx.restore();
+        } else {
+            renderFrameWith(offCtx, t, { noGrid: true });
+        }
+
+        const track = stream.getVideoTracks()[0];
+        if (track.requestFrame) track.requestFrame();
+
+        frameIdx++;
+        progressEl.value = (frameIdx / totalFrames) * 100;
+        status.textContent = `Rendering frame ${frameIdx}/${totalFrames}`;
+
+        setTimeout(nextFrame, frameInterval);
+    }
+
+    nextFrame();
 }
 
 // ---- WebM Export (smooth, high quality) ----
@@ -86,7 +186,7 @@ function exportWebM() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'glowpath-animation.webm';
+        a.download = getProjectName() + '-animation.webm';
         a.click();
         URL.revokeObjectURL(url);
         overlay.classList.remove('show');
@@ -204,7 +304,7 @@ window.exportGIF = function () {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'glowpath-animation.gif';
+        a.download = getProjectName() + '-animation.gif';
         a.click();
         URL.revokeObjectURL(url);
         overlay.classList.remove('show');

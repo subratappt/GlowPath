@@ -54,7 +54,7 @@ document.getElementById('gifQualityRow').style.display = 'none';
 
 // Arc bulge slider display
 document.getElementById('arcBulge').addEventListener('input', e => {
-    document.getElementById('arcBulgeVal').textContent = e.target.value;
+    document.getElementById('arcBulgeVal').textContent = parseFloat(e.target.value).toFixed(2);
 });
 
 // ---- Canvas Resize (fit to viewport) ----
