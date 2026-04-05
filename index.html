@@ -175,15 +175,6 @@
                 </div>
             </div>
 
-            <!-- Shapes -->
-            <div class="panel panel-shapes">
-                <h3>Shapes</h3>
-                <div id="shapeList"></div>
-                <div class="btn-row" style="flex-shrink:0">
-                    <button class="btn btn-danger" onclick="clearAllShapes()">Clear All</button>
-                </div>
-            </div>
-
             <!-- Laser Animation -->
             <div class="panel">
                 <h3>Laser Animation</h3>
@@ -286,35 +277,47 @@
             </div>
         </div>
 
-        <!-- Export Overlay -->
-        <div id="exportOverlay">
-            <div id="exportBox">
-                <h3 id="exportTitle">Exporting…</h3>
-                <progress id="exportProgress" value="0" max="100"></progress>
-                <div id="exportStatus">Preparing frames…</div>
-                <button class="btn btn-secondary" onclick="cancelExport()" id="cancelExportBtn">Cancel</button>
+        <!-- Right Sidebar: Shapes -->
+        <div id="rightSidebar">
+            <div class="panel panel-shapes">
+                <h3>Shapes</h3>
+                <div id="shapeList"></div>
+                <div class="btn-row" style="flex-shrink:0">
+                    <button class="btn btn-danger" onclick="clearAllShapes()">Clear All</button>
+                </div>
             </div>
         </div>
+    </div>
 
-        <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
-        <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-        <script>
-            // Pre-fetch gif.worker.js as blob to avoid cross-origin worker issues
-            window.gifWorkerBlobURL = null;
-            fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
-                .then(r => r.blob())
-                .then(blob => {
-                    window.gifWorkerBlobURL = URL.createObjectURL(blob);
-                });
-        </script>
-        <script src="js/state.js"></script>
-        <script src="js/geometry.js"></script>
-        <script src="js/renderer.js"></script>
-        <script src="js/shapes.js"></script>
-        <script src="js/tools.js"></script>
-        <script src="js/animation.js"></script>
-        <script src="js/export.js"></script>
-        <script src="js/init.js"></script>
+    <!-- Export Overlay -->
+    <div id="exportOverlay">
+        <div id="exportBox">
+            <h3 id="exportTitle">Exporting…</h3>
+            <progress id="exportProgress" value="0" max="100"></progress>
+            <div id="exportStatus">Preparing frames…</div>
+            <button class="btn btn-secondary" onclick="cancelExport()" id="cancelExportBtn">Cancel</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script>
+        // Pre-fetch gif.worker.js as blob to avoid cross-origin worker issues
+        window.gifWorkerBlobURL = null;
+        fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
+            .then(r => r.blob())
+            .then(blob => {
+                window.gifWorkerBlobURL = URL.createObjectURL(blob);
+            });
+    </script>
+    <script src="js/state.js"></script>
+    <script src="js/geometry.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/shapes.js"></script>
+    <script src="js/tools.js"></script>
+    <script src="js/animation.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/init.js"></script>
 </body>
 
 </html>

@@ -67,15 +67,27 @@ body {
     width: 280px;
     background: #f5f5f7;
     padding: 12px;
-    overflow-y: hidden;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 10px;
     border-right: 1px solid #ddd;
+    flex-shrink: 0;
+}
+
+/* Right Sidebar: Shapes */
+#rightSidebar {
+    width: 240px;
+    background: #f5f5f7;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid #ddd;
+    flex-shrink: 0;
 }
 
 /* Shapes panel fills remaining space */
-#sidebar .panel-shapes {
+#rightSidebar .panel-shapes {
     flex: 1;
     min-height: 0;
     display: flex;
@@ -402,6 +414,11 @@ body.dark #sidebar {
     border-right-color: #0f3460;
 }
 
+body.dark #rightSidebar {
+    background: #343b55;
+    border-left-color: #0f3460;
+}
+
 body.dark #toolbar {
     background: #343b55;
     border-bottom-color: #0f3460;
@@ -502,4 +519,89 @@ body.dark .credit {
 
 body.dark #themeToggle {
     border-color: #555;
+}
+
+/* ---- Responsive: small devices ---- */
+@media (max-width: 900px) {
+    #appBody {
+        flex-direction: column;
+    }
+
+    #sidebar {
+        width: 100%;
+        max-height: 35vh;
+        border-right: none;
+        border-bottom: 1px solid #ddd;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 8px;
+        overflow-y: auto;
+    }
+
+    #sidebar .panel {
+        flex: 1 1 200px;
+        min-width: 180px;
+    }
+
+    #rightSidebar {
+        width: 100%;
+        max-height: 30vh;
+        border-left: none;
+        border-top: 1px solid #ddd;
+    }
+
+    #main {
+        padding: 8px;
+    }
+
+    #timeline {
+        width: 200px;
+    }
+
+    #playbar {
+        gap: 6px;
+        padding: 6px 10px;
+    }
+
+    #toolbar {
+        padding: 4px 8px;
+        gap: 4px;
+    }
+
+    .toolbar-divider {
+        height: 18px;
+    }
+}
+
+@media (max-width: 600px) {
+    #sidebar {
+        max-height: 40vh;
+        padding: 8px;
+    }
+
+    #sidebar .panel {
+        flex: 1 1 100%;
+    }
+
+    #rightSidebar {
+        max-height: 25vh;
+        padding: 8px;
+    }
+
+    #toolbar {
+        font-size: 11px;
+    }
+
+    .btn-sm {
+        padding: 3px 6px;
+        font-size: 11px;
+    }
+
+    .toolbar-divider {
+        display: none;
+    }
+
+    #timeline {
+        width: 140px;
+    }
 }
