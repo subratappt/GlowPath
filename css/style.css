@@ -11,7 +11,7 @@
 body {
     font-family: 'Segoe UI', system-ui, sans-serif;
     background: #ffffff;
-    color: #e0e0e0;
+    color: #333;
     display: flex;
     height: 100vh;
     overflow: hidden;
@@ -20,13 +20,13 @@ body {
 /* Sidebar */
 #sidebar {
     width: 320px;
-    background: #343b55;
+    background: #f5f5f7;
     padding: 16px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 12px;
-    border-right: 1px solid #0f3460;
+    border-right: 1px solid #ddd;
 }
 
 #sidebar h2 {
@@ -38,14 +38,14 @@ body {
 .credit {
     text-align: center;
     font-size: 11px;
-    color: #666;
+    color: #999;
     padding: 10px 0 4px;
     margin-top: auto;
 }
 
 .panel {
-    background: #28283d;
-    border: 1px solid #0f3460;
+    background: #ffffff;
+    border: 1px solid #e0e0e0;
     border-radius: 8px;
     padding: 12px;
 }
@@ -54,7 +54,7 @@ body {
     font-size: 13px;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #888;
+    color: #666;
     margin-bottom: 8px;
 }
 
@@ -62,7 +62,7 @@ body {
     display: block;
     font-size: 12px;
     margin-top: 6px;
-    color: #aaa;
+    color: #555;
 }
 
 .panel input[type="number"],
@@ -71,10 +71,10 @@ body {
     width: 100%;
     padding: 6px 8px;
     margin-top: 2px;
-    background: #0f3460;
-    border: 1px solid #1a3a6e;
+    background: #fff;
+    border: 1px solid #ccc;
     border-radius: 4px;
-    color: #e0e0e0;
+    color: #333;
     font-size: 13px;
 }
 
@@ -119,21 +119,21 @@ body {
 }
 
 .btn-secondary {
-    background: #0f3460;
-    color: #e0e0e0;
+    background: #e8e8ec;
+    color: #333;
 }
 
 .btn-secondary:hover {
-    background: #1a3a6e;
+    background: #d8d8de;
 }
 
 .btn-danger {
-    background: #6b1a1a;
-    color: #e0e0e0;
+    background: #fce4e4;
+    color: #c0392b;
 }
 
 .btn-danger:hover {
-    background: #8b2a2a;
+    background: #f5c6c6;
 }
 
 .btn-row {
@@ -160,7 +160,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 5px 8px;
-    background: #0f3460;
+    background: #eef0f4;
     border-radius: 4px;
     margin-bottom: 4px;
     font-size: 12px;
@@ -168,7 +168,7 @@ body {
 }
 
 .shape-item:hover {
-    background: #1a3a6e;
+    background: #dfe2e8;
 }
 
 .shape-item.selected {
@@ -196,7 +196,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 5px 8px;
-    background: #0f3460;
+    background: #eef0f4;
     border-radius: 4px;
     margin-bottom: 4px;
     font-size: 12px;
@@ -224,9 +224,9 @@ body {
 
 #canvasWrap {
     position: relative;
-    border: 1px solid #0f3460;
+    border: 1px solid #ddd;
     border-radius: 4px;
-    box-shadow: 0 0 30px rgba(233, 69, 96, 0.15);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
 }
 
 canvas {
@@ -240,7 +240,7 @@ canvas {
     align-items: center;
     gap: 10px;
     margin-top: 12px;
-    background: #16213e;
+    background: #eef0f4;
     padding: 10px 16px;
     border-radius: 8px;
 }
@@ -275,10 +275,10 @@ canvas {
 }
 
 #exportBox {
-    background: #16213e;
+    background: #ffffff;
     padding: 24px;
     border-radius: 12px;
-    border: 1px solid #0f3460;
+    border: 1px solid #ddd;
     min-width: 300px;
     text-align: center;
 }
@@ -297,4 +297,85 @@ canvas {
 #exportStatus {
     font-size: 13px;
     margin-bottom: 12px;
+}
+
+/* ---- Dark theme ---- */
+body.dark {
+    background: #1a1a2e;
+    color: #e0e0e0;
+}
+
+body.dark #sidebar {
+    background: #343b55;
+    border-right-color: #0f3460;
+}
+
+body.dark .panel {
+    background: #28283d;
+    border-color: #0f3460;
+}
+
+body.dark .panel h3 {
+    color: #888;
+}
+
+body.dark .panel label {
+    color: #aaa;
+}
+
+body.dark .panel input[type="number"],
+body.dark .panel input[type="text"],
+body.dark .panel select {
+    background: #0f3460;
+    border-color: #1a3a6e;
+    color: #e0e0e0;
+}
+
+body.dark .btn-secondary {
+    background: #0f3460;
+    color: #e0e0e0;
+}
+
+body.dark .btn-secondary:hover {
+    background: #1a3a6e;
+}
+
+body.dark .btn-danger {
+    background: #6b1a1a;
+    color: #e0e0e0;
+}
+
+body.dark .btn-danger:hover {
+    background: #8b2a2a;
+}
+
+body.dark .shape-item,
+body.dark .anim-item {
+    background: #0f3460;
+}
+
+body.dark .shape-item:hover {
+    background: #1a3a6e;
+}
+
+body.dark #canvasWrap {
+    border-color: #0f3460;
+    box-shadow: 0 0 30px rgba(233, 69, 96, 0.15);
+}
+
+body.dark #playbar {
+    background: #16213e;
+}
+
+body.dark #exportBox {
+    background: #16213e;
+    border-color: #0f3460;
+}
+
+body.dark .credit {
+    color: #666;
+}
+
+body.dark #themeToggle {
+    border-color: #555;
 }

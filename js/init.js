@@ -2,6 +2,22 @@
 // GlowPath – Initialization & UI Bindings
 // ============================================================
 
+// ---- Theme Toggle ----
+function toggleTheme() {
+    const isDark = document.body.classList.toggle('dark');
+    document.getElementById('themeToggle').textContent = isDark ? '☀️' : '🌙';
+    localStorage.setItem('glowpath-theme', isDark ? 'dark' : 'light');
+}
+
+// Restore saved theme
+(function() {
+    const saved = localStorage.getItem('glowpath-theme');
+    if (saved === 'dark') {
+        document.body.classList.add('dark');
+        document.getElementById('themeToggle').textContent = '☀️';
+    }
+})();
+
 // ---- UI Event Bindings ----
 document.getElementById('laserColor').addEventListener('input', e => {
     document.getElementById('laserColorHex').textContent = e.target.value;
