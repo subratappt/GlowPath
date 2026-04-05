@@ -10,7 +10,7 @@ function toggleTheme() {
 }
 
 // Restore saved theme
-(function() {
+(function () {
     const saved = localStorage.getItem('glowpath-theme');
     if (saved === 'dark') {
         document.body.classList.add('dark');
