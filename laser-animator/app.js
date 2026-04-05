@@ -16,6 +16,7 @@ let animIdCounter = 0;
 // Drawing state
 let isDrawing = false;
 let drawStart = null;
+let curvePoints = []; // for freehand curve tool
 
 // Playback state
 let playing = false;
@@ -73,11 +74,37 @@ canvas.addEventListener('mousedown', e => {
     if (playing) return;
     isDrawing = true;
     drawStart = canvasCoords(e);
+    if (currentTool === 'curve') {
+        curvePoints = [drawStart];
+    }
 });
 
 canvas.addEventListener('mousemove', e => {
     if (!isDrawing || playing) return;
     const cur = canvasCoords(e);
+    if (currentTool === 'curve') {
+        // Only add point if moved enough (avoid duplicates)
+        const last = curvePoints[curvePoints.length - 1];
+        if (Math.hypot(cur.x - last.x, cur.y - last.y) >= 3) {
+            curvePoints.push(cur);
+        }
+        renderFrame(getCurrentTime());
+        // Draw preview of curve so far
+        ctx.save();
+        ctx.strokeStyle = document.getElementById('strokeColor').value;
+        ctx.lineWidth = parseInt(document.getElementById('strokeWidth').value);
+        ctx.setLineDash([]);
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(curvePoints[0].x, curvePoints[0].y);
+        for (let i = 1; i < curvePoints.length; i++) {
+            ctx.lineTo(curvePoints[i].x, curvePoints[i].y);
+        }
+        ctx.stroke();
+        ctx.restore();
+        return;
+    }
     renderFrame(getCurrentTime());
     // Draw preview
     ctx.save();
@@ -108,7 +135,23 @@ canvas.addEventListener('mouseup', e => {
     const width = parseInt(document.getElementById('strokeWidth').value);
     const id = ++shapeIdCounter;
 
-    if (currentTool === 'line') {
+    if (currentTool === 'curve') {
+        if (curvePoints.length >= 2) {
+            // Simplify the curve: Douglas-Peucker with tolerance
+            const controlPts = simplifyPoints(curvePoints, 2);
+            if (controlPts.length >= 2) {
+                // Resample the smooth bezier curve into dense points for animation
+                const smoothPts = controlPts.length >= 3 ? resampleSmoothCurve(controlPts, 12) : controlPts.slice();
+                // Pre-compute cumulative distances for fast lookup
+                const dists = [0];
+                for (let i = 1; i < smoothPts.length; i++) {
+                    dists.push(dists[i - 1] + Math.hypot(smoothPts[i].x - smoothPts[i - 1].x, smoothPts[i].y - smoothPts[i - 1].y));
+                }
+                shapes.push({ type: 'curve', id, controlPts, points: smoothPts, dists, color, width });
+            }
+        }
+        curvePoints = [];
+    } else if (currentTool === 'line') {
         if (dist(drawStart, end) < 3) return;
         shapes.push({ type: 'line', id, x1: drawStart.x, y1: drawStart.y, x2: end.x, y2: end.y, color, width });
     } else if (currentTool === 'circle') {
@@ -130,6 +173,7 @@ canvas.addEventListener('mouseup', e => {
 canvas.addEventListener('mouseleave', () => {
     if (isDrawing && !playing) {
         isDrawing = false;
+        curvePoints = [];
         renderFrame(getCurrentTime());
     }
 });
@@ -143,6 +187,7 @@ function refreshShapeList() {
         div.className = 'shape-item';
         let desc = '';
         if (s.type === 'line') desc = `Line #${s.id} (${s.x1},${s.y1})→(${s.x2},${s.y2})`;
+        else if (s.type === 'curve') desc = `Curve #${s.id} (${s.points.length} pts)`;
         else if (s.type === 'circle') desc = `Circle #${s.id} r=${Math.round(s.r)}`;
         else if (s.type === 'rect') desc = `Rect #${s.id} ${s.w}×${s.h}`;
         div.innerHTML = `<span>${desc}</span><button class="del-btn" onclick="deleteShape(${s.id})">✕</button>`;
@@ -177,6 +222,7 @@ function refreshAnimTargets() {
         const opt = document.createElement('option');
         opt.value = s.id;
         if (s.type === 'line') opt.textContent = `Line #${s.id}`;
+        else if (s.type === 'curve') opt.textContent = `Curve #${s.id}`;
         else if (s.type === 'circle') opt.textContent = `Circle #${s.id}`;
         else if (s.type === 'rect') opt.textContent = `Rect #${s.id}`;
         sel.appendChild(opt);
@@ -193,7 +239,7 @@ window.updateDirectionOptions = function () {
     if (!shape) return;
     const prevDir = sel.value;
     sel.innerHTML = '';
-    if (shape.type === 'line') {
+    if (shape.type === 'line' || shape.type === 'curve') {
         sel.innerHTML = '<option value="outward">Outward (start → end)</option><option value="inward">Inward (end → start)</option>';
     } else {
         sel.innerHTML = '<option value="clockwise">Clockwise</option><option value="anticlockwise">Anticlockwise</option>';
@@ -208,6 +254,7 @@ document.getElementById('animTarget').addEventListener('change', () => {
 // ---- Shape path helpers ----
 function getShapePerimeter(shape) {
     if (shape.type === 'line') return Math.hypot(shape.x2 - shape.x1, shape.y2 - shape.y1);
+    if (shape.type === 'curve') return shape.dists[shape.dists.length - 1];
     if (shape.type === 'circle') return 2 * Math.PI * shape.r;
     if (shape.type === 'rect') return 2 * (shape.w + shape.h);
     return 0;
@@ -230,6 +277,109 @@ function rectPos(shape, t) {
     if (d <= shape.w) return { x: shape.x + shape.w - d, y: shape.y + shape.h }; // bottom
     d -= shape.w;
     return { x: shape.x, y: shape.y + shape.h - d }; // left
+}
+
+// Get position along a curve at fraction t (0–1)
+function curvePos(shape, t) {
+    const totalLen = shape.dists[shape.dists.length - 1];
+    const targetDist = t * totalLen;
+    // Binary search for the segment
+    let lo = 0, hi = shape.dists.length - 1;
+    while (lo < hi - 1) {
+        const mid = (lo + hi) >> 1;
+        if (shape.dists[mid] <= targetDist) lo = mid;
+        else hi = mid;
+    }
+    const segStart = shape.dists[lo];
+    const segEnd = shape.dists[hi];
+    const segLen = segEnd - segStart;
+    const frac = segLen > 0 ? (targetDist - segStart) / segLen : 0;
+    return {
+        x: shape.points[lo].x + (shape.points[hi].x - shape.points[lo].x) * frac,
+        y: shape.points[lo].y + (shape.points[hi].y - shape.points[lo].y) * frac
+    };
+}
+
+// Douglas-Peucker curve simplification
+function simplifyPoints(pts, tolerance) {
+    if (pts.length <= 2) return pts.slice();
+    // Find the point farthest from the line between first and last
+    let maxDist = 0, maxIdx = 0;
+    const first = pts[0], last = pts[pts.length - 1];
+    const dx = last.x - first.x, dy = last.y - first.y;
+    const lenSq = dx * dx + dy * dy;
+    for (let i = 1; i < pts.length - 1; i++) {
+        let d;
+        if (lenSq === 0) {
+            d = Math.hypot(pts[i].x - first.x, pts[i].y - first.y);
+        } else {
+            const t = clamp(((pts[i].x - first.x) * dx + (pts[i].y - first.y) * dy) / lenSq, 0, 1);
+            const px = first.x + t * dx, py = first.y + t * dy;
+            d = Math.hypot(pts[i].x - px, pts[i].y - py);
+        }
+        if (d > maxDist) { maxDist = d; maxIdx = i; }
+    }
+    if (maxDist > tolerance) {
+        const left = simplifyPoints(pts.slice(0, maxIdx + 1), tolerance);
+        const right = simplifyPoints(pts.slice(maxIdx), tolerance);
+        return left.slice(0, -1).concat(right);
+    }
+    return [first, last];
+}
+
+// Draw a smooth curve through control points using quadratic bezier midpoint technique
+function drawSmoothCurve(c, pts) {
+    if (pts.length < 2) return;
+    c.beginPath();
+    c.moveTo(pts[0].x, pts[0].y);
+    if (pts.length === 2) {
+        c.lineTo(pts[1].x, pts[1].y);
+    } else {
+        for (let i = 1; i < pts.length - 1; i++) {
+            const mx = (pts[i].x + pts[i + 1].x) / 2;
+            const my = (pts[i].y + pts[i + 1].y) / 2;
+            c.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+        }
+        // Last segment to the final point
+        const last = pts[pts.length - 1];
+        const prev = pts[pts.length - 2];
+        c.quadraticCurveTo(prev.x, prev.y, last.x, last.y);
+    }
+    c.stroke();
+}
+
+// Resample a smooth quadratic bezier curve into dense points for animation
+function resampleSmoothCurve(pts, stepsPerSeg) {
+    if (pts.length < 3) return pts.slice();
+    const steps = stepsPerSeg || 12;
+    const result = [{ x: pts[0].x, y: pts[0].y }];
+    for (let i = 1; i < pts.length - 1; i++) {
+        const sx = result[result.length - 1].x, sy = result[result.length - 1].y;
+        const cpx = pts[i].x, cpy = pts[i].y;
+        const ex = (pts[i].x + pts[i + 1].x) / 2, ey = (pts[i].y + pts[i + 1].y) / 2;
+        for (let t = 1; t <= steps; t++) {
+            const u = t / steps;
+            const inv = 1 - u;
+            result.push({
+                x: inv * inv * sx + 2 * inv * u * cpx + u * u * ex,
+                y: inv * inv * sy + 2 * inv * u * cpy + u * u * ey
+            });
+        }
+    }
+    // Last segment: quadratic to final point
+    const last = pts[pts.length - 1];
+    const prev = pts[pts.length - 2];
+    const sx = result[result.length - 1].x, sy = result[result.length - 1].y;
+    const segSteps = Math.max(4, Math.ceil(Math.hypot(last.x - sx, last.y - sy) / 4));
+    for (let t = 1; t <= segSteps; t++) {
+        const u = t / segSteps;
+        const inv = 1 - u;
+        result.push({
+            x: inv * inv * sx + 2 * inv * u * prev.x + u * u * last.x,
+            y: inv * inv * sy + 2 * inv * u * prev.y + u * u * last.y
+        });
+    }
+    return result;
 }
 
 // ---- Laser Color Preview ----
@@ -303,6 +453,10 @@ function drawShape(s) {
         ctx.moveTo(s.x1, s.y1);
         ctx.lineTo(s.x2, s.y2);
         ctx.stroke();
+    } else if (s.type === 'curve') {
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        drawSmoothCurve(ctx, s.controlPts);
     } else if (s.type === 'circle') {
         ctx.beginPath();
         ctx.arc(s.cx, s.cy, s.r, 0, Math.PI * 2);
@@ -374,7 +528,7 @@ function renderFrame(t) {
         const travelDist = elapsed * a.velocity;
 
         let progress, isLoop;
-        if (shape.type === 'line') {
+        if (shape.type === 'line' || shape.type === 'curve') {
             progress = clamp(travelDist / perim, 0, 1);
             isLoop = false;
         } else {
@@ -383,10 +537,10 @@ function renderFrame(t) {
             isLoop = true;
         }
 
-        // Vanish at end (for lines: at end; for loops: after one full revolution)
+        // Vanish at end (for lines/curves: at end; for loops: after one full revolution)
         if (a.vanishAtEnd) {
-            if (shape.type === 'line' && travelDist / perim >= 1) return;
-            if (shape.type !== 'line' && travelDist / perim >= 1) return;
+            if ((shape.type === 'line' || shape.type === 'curve') && travelDist / perim >= 1) return;
+            if (shape.type !== 'line' && shape.type !== 'curve' && travelDist / perim >= 1) return;
         }
 
         // Reverse direction
@@ -400,6 +554,9 @@ function renderFrame(t) {
         if (shape.type === 'line') {
             px = shape.x1 + (shape.x2 - shape.x1) * effProgress;
             py = shape.y1 + (shape.y2 - shape.y1) * effProgress;
+        } else if (shape.type === 'curve') {
+            const pos = curvePos(shape, effProgress);
+            px = pos.x; py = pos.y;
         } else if (shape.type === 'circle') {
             const pos = circlePos(shape, effProgress);
             px = pos.x; py = pos.y;
@@ -415,7 +572,6 @@ function renderFrame(t) {
 
         if (shape.type === 'line') {
             const trailLen = 0.15;
-            const trailStart = Math.max(0, effProgress - (a.direction === 'outward' ? trailLen : -trailLen));
             const trailFrac = a.direction === 'outward' ? Math.max(0, effProgress - trailLen) : Math.min(1, effProgress + trailLen);
             const tx = shape.x1 + (shape.x2 - shape.x1) * trailFrac;
             const ty = shape.y1 + (shape.y2 - shape.y1) * trailFrac;
@@ -429,6 +585,21 @@ function renderFrame(t) {
             ctx.moveTo(tx, ty);
             ctx.lineTo(px, py);
             ctx.stroke();
+        } else if (shape.type === 'curve') {
+            // Particle trail along curve
+            const trailFrac = 0.1;
+            const steps = 20;
+            for (let i = 0; i < steps; i++) {
+                const frac = i / steps;
+                const sign = (a.direction === 'inward') ? 1 : -1;
+                const tp = clamp(effProgress + sign * trailFrac * (1 - frac), 0, 1);
+                const tpos = curvePos(shape, tp);
+                const alpha = 0.25 * frac;
+                ctx.fillStyle = `rgba(${rc},${gc},${bc},${alpha})`;
+                ctx.beginPath();
+                ctx.arc(tpos.x, tpos.y, a.pointerSize * (0.4 + 0.6 * frac), 0, Math.PI * 2);
+                ctx.fill();
+            }
         } else {
             // Arc/rect trail
             const trailFrac = 0.08;
@@ -739,6 +910,9 @@ function renderFrameWith(c, t, opts) {
         c.setLineDash([]);
         if (s.type === 'line') {
             c.beginPath(); c.moveTo(s.x1, s.y1); c.lineTo(s.x2, s.y2); c.stroke();
+        } else if (s.type === 'curve') {
+            c.lineJoin = 'round'; c.lineCap = 'round';
+            drawSmoothCurve(c, s.controlPts);
         } else if (s.type === 'circle') {
             c.beginPath(); c.arc(s.cx, s.cy, s.r, 0, Math.PI * 2); c.stroke();
         } else if (s.type === 'rect') {
@@ -758,15 +932,15 @@ function renderFrameWith(c, t, opts) {
         const travelDist = elapsed * a.velocity;
 
         let progress;
-        if (shape.type === 'line') {
+        if (shape.type === 'line' || shape.type === 'curve') {
             progress = clamp(travelDist / perim, 0, 1);
         } else {
             progress = (travelDist / perim) % 1;
         }
 
         if (a.vanishAtEnd) {
-            if (shape.type === 'line' && travelDist / perim >= 1) return;
-            if (shape.type !== 'line' && travelDist / perim >= 1) return;
+            if ((shape.type === 'line' || shape.type === 'curve') && travelDist / perim >= 1) return;
+            if (shape.type !== 'line' && shape.type !== 'curve' && travelDist / perim >= 1) return;
         }
 
         let effProgress = progress;
@@ -778,6 +952,9 @@ function renderFrameWith(c, t, opts) {
         if (shape.type === 'line') {
             px = shape.x1 + (shape.x2 - shape.x1) * effProgress;
             py = shape.y1 + (shape.y2 - shape.y1) * effProgress;
+        } else if (shape.type === 'curve') {
+            const pos = curvePos(shape, effProgress);
+            px = pos.x; py = pos.y;
         } else if (shape.type === 'circle') {
             const pos = circlePos(shape, effProgress);
             px = pos.x; py = pos.y;
@@ -805,6 +982,20 @@ function renderFrameWith(c, t, opts) {
             c.moveTo(tx, ty);
             c.lineTo(px, py);
             c.stroke();
+        } else if (shape.type === 'curve') {
+            const trailFrac = 0.1;
+            const steps = 20;
+            for (let i = 0; i < steps; i++) {
+                const frac = i / steps;
+                const sign = (a.direction === 'inward') ? 1 : -1;
+                const tp = clamp(effProgress + sign * trailFrac * (1 - frac), 0, 1);
+                const tpos = curvePos(shape, tp);
+                const alpha = 0.25 * frac;
+                c.fillStyle = `rgba(${rc},${gc},${bc},${alpha})`;
+                c.beginPath();
+                c.arc(tpos.x, tpos.y, a.pointerSize * (0.4 + 0.6 * frac), 0, Math.PI * 2);
+                c.fill();
+            }
         } else {
             const trailFrac = 0.08;
             const steps = 20;
