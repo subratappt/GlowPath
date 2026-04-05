@@ -72,6 +72,7 @@ function finishPolyline() {
         polylinePoints.pop();
     }
     if (polylinePoints.length < 2) { polylinePoints = []; return; }
+    saveState();
     const color = document.getElementById('strokeColor').value;
     const width = parseInt(document.getElementById('strokeWidth').value);
     const arrow = document.getElementById('arrowAtEnd').checked;
@@ -90,8 +91,15 @@ function finishPolyline() {
     renderFrame(getCurrentTime());
 }
 
-// ESC to cancel polyline/deselect, Enter to finish polyline
+// ESC to cancel polyline/deselect, Enter to finish polyline, Ctrl+Z/Ctrl+Shift+Z undo/redo
 document.addEventListener('keydown', e => {
+    // Undo/Redo
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault(); undo(); return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault(); redo(); return;
+    }
     if (e.key === 'Escape') {
         if (polylinePoints.length > 0) {
             polylinePoints = [];
@@ -188,6 +196,7 @@ function showSelPanel(s) {
 window.applySelProps = function () {
     const s = shapes.find(sh => sh.id === selectedShapeId);
     if (!s) return;
+    saveState();
     s.color = document.getElementById('selColor').value;
     if (s.type !== 'text' && s.type !== 'image') {
         s.width = parseInt(document.getElementById('selWidth').value) || 2;
@@ -213,6 +222,7 @@ window.applySelProps = function () {
 window.duplicateSelected = function () {
     const s = shapes.find(sh => sh.id === selectedShapeId);
     if (!s) return;
+    saveState();
     const clone = duplicateShape(s);
     moveShape(clone, 20, 20);
     shapes.push(clone);
@@ -225,6 +235,7 @@ window.duplicateSelected = function () {
 
 window.deleteSelected = function () {
     if (selectedShapeId == null) return;
+    saveState();
     shapes = shapes.filter(s => s.id !== selectedShapeId);
     animations = animations.filter(a => a.shapeId !== selectedShapeId);
     selectedShapeId = null;
@@ -250,6 +261,7 @@ canvas.addEventListener('mousedown', e => {
     if (found) {
         selectedShapeId = found.id;
         isDraggingShape = true;
+        _dragSavedState = false;
         dragOffset = { x: pos.x, y: pos.y };
         canvas.style.cursor = 'move';
         showSelPanel(found);
@@ -269,6 +281,7 @@ canvas.addEventListener('mousedown', e => {
 
 canvas.addEventListener('mousemove', e => {
     if (currentTool !== 'select' || !isDraggingShape || playing) return;
+    if (!_dragSavedState) { saveState(); _dragSavedState = true; }
     const pos = canvasCoords(e);
     const s = shapes.find(sh => sh.id === selectedShapeId);
     if (!s) return;
@@ -420,6 +433,7 @@ canvas.addEventListener('mouseup', e => {
     // Snap end point to existing shapes
     const endSnap = findNearestSnap(end, shapes);
     if (endSnap) end = endSnap;
+    saveState();
     const color = document.getElementById('strokeColor').value;
     const width = parseInt(document.getElementById('strokeWidth').value);
     const id = ++shapeIdCounter;
@@ -546,6 +560,7 @@ canvas.addEventListener('click', e => {
         const content = isLatex ? latexMatch[1] : rawText;
 
         const textShape = { type: 'text', id, x: pos.x, y: pos.y, content, isLatex, fontSize, color };
+        saveState();
 
         if (isLatex) {
             // Render KaTeX to image for canvas drawing
@@ -574,6 +589,7 @@ canvas.addEventListener('click', e => {
         const ph = parseInt(document.getElementById('imgPlaceH').value) || 200;
         const opacity = parseFloat(document.getElementById('imgOpacity').value);
         const id = ++shapeIdCounter;
+        saveState();
 
         shapes.push({
             type: 'image', id,

@@ -24,6 +24,7 @@ function refreshShapeList() {
 }
 
 window.deleteShape = function (id) {
+    saveState();
     shapes = shapes.filter(s => s.id !== id);
     animations = animations.filter(a => a.shapeId !== id);
     refreshShapeList();
@@ -33,6 +34,7 @@ window.deleteShape = function (id) {
 };
 
 window.clearAllShapes = function () {
+    saveState();
     shapes = [];
     animations = [];
     refreshShapeList();

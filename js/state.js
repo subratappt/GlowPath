@@ -22,6 +22,7 @@ let polylinePoints = []; // for multi-segment line tool
 // Selection state
 let selectedShapeId = null;
 let isDraggingShape = false;
+let _dragSavedState = false;
 let dragOffset = { x: 0, y: 0 };
 
 // Snap-to-object state
@@ -33,6 +34,53 @@ let playStartReal = 0;  // performance.now() when play started
 let playOffset = 0;      // time offset from timeline scrub
 let animFrameId = null;
 let exportCancelled = false;
+
+// Undo/Redo history
+let _undoStack = [];
+let _redoStack = [];
+const _maxHistory = 50;
+
+function _cloneShapes() {
+    return shapes.map(s => {
+        const c = Object.assign({}, s);
+        if (s.points) c.points = s.points.map(p => ({ x: p.x, y: p.y }));
+        if (s.controlPts) c.controlPts = s.controlPts.map(p => ({ x: p.x, y: p.y }));
+        if (s.dists) c.dists = s.dists.slice();
+        // image/text image refs are kept as-is (non-serializable)
+        if (s.image) c.image = s.image;
+        return c;
+    });
+}
+
+function saveState() {
+    _undoStack.push(_cloneShapes());
+    if (_undoStack.length > _maxHistory) _undoStack.shift();
+    _redoStack = [];
+}
+
+function undo() {
+    if (_undoStack.length === 0) return;
+    _redoStack.push(_cloneShapes());
+    shapes = _undoStack.pop();
+    selectedShapeId = null;
+    const selPanel = document.getElementById('selectPanel');
+    if (selPanel) selPanel.style.display = 'none';
+    refreshShapeList();
+    refreshAnimTargets();
+    renderFrame(getCurrentTime());
+}
+
+function redo() {
+    if (_redoStack.length === 0) return;
+    _undoStack.push(_cloneShapes());
+    shapes = _redoStack.pop();
+    selectedShapeId = null;
+    const selPanel = document.getElementById('selectPanel');
+    if (selPanel) selPanel.style.display = 'none';
+    refreshShapeList();
+    refreshAnimTargets();
+    renderFrame(getCurrentTime());
+}
 
 // ---- Helpers ----
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
