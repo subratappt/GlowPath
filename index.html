@@ -53,7 +53,10 @@
             <label style="display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer">
                 <input type="checkbox" id="multiSegment"> Multi-segment line
             </label>
-            <p id="multiSegHint" style="display:none;font-size:11px;color:#888;margin-top:4px">Click to add points. Double-click to finish. Esc to cancel.</p>
+            <p id="multiSegHint"
+                style="display:none;font-size:11px;color:#888;margin-top:4px">Click to add points. Enter or Done to finish. Esc to cancel.</p>
+            <button class="btn btn-primary" id="polyDoneBtn" onclick="finishPolyline()"
+                style="display:none;margin-top:4px;font-size:12px;padding:4px 12px">Done</button>
         </div>
 
         <!-- Text Options (shown when text tool active) -->

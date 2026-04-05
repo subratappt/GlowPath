@@ -43,6 +43,20 @@ function dist(a, b) {
     return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
+// Snap point to nearest 0/45/90/135/180… angle relative to origin
+function snapAngle(origin, pt) {
+    const dx = pt.x - origin.x;
+    const dy = pt.y - origin.y;
+    const d = Math.hypot(dx, dy);
+    if (d === 0) return { x: pt.x, y: pt.y };
+    const angle = Math.atan2(dy, dx);
+    const snapped = Math.round(angle / (Math.PI / 4)) * (Math.PI / 4);
+    return {
+        x: Math.round(origin.x + d * Math.cos(snapped)),
+        y: Math.round(origin.y + d * Math.sin(snapped))
+    };
+}
+
 function getTotalDuration() {
     return parseFloat(document.getElementById('totalDuration').value) || 5;
 }

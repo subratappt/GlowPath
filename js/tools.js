@@ -25,6 +25,7 @@ document.getElementById('multiSegment').addEventListener('change', function () {
     document.getElementById('multiSegHint').style.display = this.checked ? '' : 'none';
     if (!this.checked && polylinePoints.length > 0) {
         polylinePoints = [];
+        document.getElementById('polyDoneBtn').style.display = 'none';
         renderFrame(getCurrentTime());
     }
 });
@@ -55,23 +56,20 @@ function finishPolyline() {
     }
     shapes.push({ type: 'polyline', id, points: pts, dists, color, width, arrow });
     polylinePoints = [];
+    document.getElementById('polyDoneBtn').style.display = 'none';
     refreshShapeList();
     refreshAnimTargets();
     renderFrame(getCurrentTime());
 }
 
-// ESC to cancel polyline
+// ESC to cancel polyline, Enter to finish
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && polylinePoints.length > 0) {
         polylinePoints = [];
+        document.getElementById('polyDoneBtn').style.display = 'none';
         renderFrame(getCurrentTime());
     }
-});
-
-// Double-click to finish polyline
-canvas.addEventListener('dblclick', e => {
-    if (playing) return;
-    if (isMultiSeg() && polylinePoints.length >= 2) {
+    if (e.key === 'Enter' && polylinePoints.length >= 2 && isMultiSeg()) {
         finishPolyline();
     }
 });
@@ -81,6 +79,8 @@ let _polyMousePos = null;
 canvas.addEventListener('mousemove', e => {
     if (isMultiSeg() && polylinePoints.length > 0) {
         _polyMousePos = canvasCoords(e);
+        const anchor = polylinePoints[polylinePoints.length - 1];
+        if (e.ctrlKey || e.metaKey) _polyMousePos = snapAngle(anchor, _polyMousePos);
         renderFrame(getCurrentTime());
         // Draw polyline preview
         ctx.save();
@@ -155,9 +155,11 @@ canvas.addEventListener('mousemove', e => {
     ctx.lineWidth = parseInt(document.getElementById('strokeWidth').value);
     ctx.setLineDash([6, 4]);
     if (currentTool === 'line') {
+        let target = cur;
+        if (e.ctrlKey || e.metaKey) target = snapAngle(drawStart, cur);
         ctx.beginPath();
         ctx.moveTo(drawStart.x, drawStart.y);
-        ctx.lineTo(cur.x, cur.y);
+        ctx.lineTo(target.x, target.y);
         ctx.stroke();
     } else if (currentTool === 'circle') {
         const r = dist(drawStart, cur);
@@ -196,9 +198,11 @@ canvas.addEventListener('mouseup', e => {
         }
         curvePoints = [];
     } else if (currentTool === 'line') {
-        if (dist(drawStart, end) < 3) return;
+        let endPt = end;
+        if (e.ctrlKey || e.metaKey) endPt = snapAngle(drawStart, end);
+        if (dist(drawStart, endPt) < 3) return;
         const arrow = document.getElementById('arrowAtEnd').checked;
-        shapes.push({ type: 'line', id, x1: drawStart.x, y1: drawStart.y, x2: end.x, y2: end.y, color, width, arrow });
+        shapes.push({ type: 'line', id, x1: drawStart.x, y1: drawStart.y, x2: endPt.x, y2: endPt.y, color, width, arrow });
     } else if (currentTool === 'circle') {
         const r = dist(drawStart, end);
         if (r < 3) return;
@@ -229,8 +233,14 @@ canvas.addEventListener('click', e => {
 
     // ---- Polyline: add vertex on click ----
     if (isMultiSeg()) {
-        const pos = canvasCoords(e);
+        let pos = canvasCoords(e);
+        if ((e.ctrlKey || e.metaKey) && polylinePoints.length > 0) {
+            pos = snapAngle(polylinePoints[polylinePoints.length - 1], pos);
+        }
         polylinePoints.push(pos);
+        if (polylinePoints.length >= 2) {
+            document.getElementById('polyDoneBtn').style.display = '';
+        }
         renderFrame(getCurrentTime());
         return;
     }

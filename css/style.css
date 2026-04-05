@@ -259,14 +259,14 @@ canvas {
     border: none;
     border-radius: 4px;
     cursor: pointer;
-    background: rgba(0,0,0,0.55);
+    background: rgba(0, 0, 0, 0.55);
     color: #fff;
     backdrop-filter: blur(4px);
     transition: background 0.15s;
 }
 
 .snap-btn:hover {
-    background: rgba(0,0,0,0.75);
+    background: rgba(0, 0, 0, 0.75);
 }
 
 /* Playback bar */
