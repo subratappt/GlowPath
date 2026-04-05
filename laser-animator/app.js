@@ -69,13 +69,15 @@ window.setTool = function (tool) {
     });
     const textPanel = document.getElementById('textPanel');
     if (textPanel) textPanel.style.display = (tool === 'text') ? '' : 'none';
-    canvas.style.cursor = (tool === 'text') ? 'text' : 'crosshair';
+    const imagePanel = document.getElementById('imagePanel');
+    if (imagePanel) imagePanel.style.display = (tool === 'image') ? '' : 'none';
+    canvas.style.cursor = (tool === 'text' || tool === 'image') ? 'crosshair' : (tool === 'line' || tool === 'curve' || tool === 'circle' || tool === 'rect') ? 'crosshair' : 'default';
 };
 
 // ---- Drawing ----
 canvas.addEventListener('mousedown', e => {
     if (playing) return;
-    if (currentTool === 'text') return; // text uses click, not drag
+    if (currentTool === 'text' || currentTool === 'image') return; // these use click, not drag
     isDrawing = true;
     drawStart = canvasCoords(e);
     if (currentTool === 'curve') {
@@ -151,13 +153,15 @@ canvas.addEventListener('mouseup', e => {
                 for (let i = 1; i < smoothPts.length; i++) {
                     dists.push(dists[i - 1] + Math.hypot(smoothPts[i].x - smoothPts[i - 1].x, smoothPts[i].y - smoothPts[i - 1].y));
                 }
-                shapes.push({ type: 'curve', id, controlPts, points: smoothPts, dists, color, width });
+                const arrow = document.getElementById('arrowAtEnd').checked;
+                shapes.push({ type: 'curve', id, controlPts, points: smoothPts, dists, color, width, arrow });
             }
         }
         curvePoints = [];
     } else if (currentTool === 'line') {
         if (dist(drawStart, end) < 3) return;
-        shapes.push({ type: 'line', id, x1: drawStart.x, y1: drawStart.y, x2: end.x, y2: end.y, color, width });
+        const arrow = document.getElementById('arrowAtEnd').checked;
+        shapes.push({ type: 'line', id, x1: drawStart.x, y1: drawStart.y, x2: end.x, y2: end.y, color, width, arrow });
     } else if (currentTool === 'circle') {
         const r = dist(drawStart, end);
         if (r < 3) return;
@@ -184,39 +188,120 @@ canvas.addEventListener('mouseleave', () => {
 
 // ---- Text Tool: click-to-place ----
 canvas.addEventListener('click', e => {
-    if (playing || currentTool !== 'text') return;
-    const pos = canvasCoords(e);
-    const rawText = (document.getElementById('textContent').value || '').trim();
-    if (!rawText) return;
-    const fontSize = parseInt(document.getElementById('textFontSize').value) || 32;
-    const color = document.getElementById('textColor').value;
-    const id = ++shapeIdCounter;
+    if (playing) return;
 
-    // Check if it's LaTeX (wrapped in $$...$$)
-    const latexMatch = rawText.match(/^\$\$([\s\S]+)\$\$$/);
-    const isLatex = !!latexMatch;
-    const content = isLatex ? latexMatch[1] : rawText;
+    if (currentTool === 'text') {
+        const pos = canvasCoords(e);
+        const rawText = (document.getElementById('textContent').value || '').trim();
+        if (!rawText) return;
+        const fontSize = parseInt(document.getElementById('textFontSize').value) || 32;
+        const color = document.getElementById('textColor').value;
+        const id = ++shapeIdCounter;
 
-    const textShape = { type: 'text', id, x: pos.x, y: pos.y, content, isLatex, fontSize, color };
+        // Check if it's LaTeX (wrapped in $$...$$)
+        const latexMatch = rawText.match(/^\$\$([\s\S]+)\$\$$/);
+        const isLatex = !!latexMatch;
+        const content = isLatex ? latexMatch[1] : rawText;
 
-    if (isLatex) {
-        // Render KaTeX to image for canvas drawing
-        renderKatexToImage(content, fontSize, color).then(img => {
-            textShape.image = img;
-            textShape.imgW = img.width;
-            textShape.imgH = img.height;
+        const textShape = { type: 'text', id, x: pos.x, y: pos.y, content, isLatex, fontSize, color };
+
+        if (isLatex) {
+            // Render KaTeX to image for canvas drawing
+            renderKatexToImage(content, fontSize, color).then(img => {
+                textShape.image = img;
+                textShape.imgW = img.width;
+                textShape.imgH = img.height;
+                shapes.push(textShape);
+                refreshShapeList();
+                refreshAnimTargets();
+                renderFrame(getCurrentTime());
+            });
+        } else {
             shapes.push(textShape);
             refreshShapeList();
             refreshAnimTargets();
             renderFrame(getCurrentTime());
+        }
+    } // end text tool
+
+    // ---- Image Tool: click-to-place ----
+    if (currentTool === 'image') {
+        if (!window._pendingImage) return;
+        const pos = canvasCoords(e);
+        const pw = parseInt(document.getElementById('imgPlaceW').value) || 200;
+        const ph = parseInt(document.getElementById('imgPlaceH').value) || 200;
+        const opacity = parseFloat(document.getElementById('imgOpacity').value);
+        const id = ++shapeIdCounter;
+
+        shapes.push({
+            type: 'image', id,
+            x: pos.x - pw / 2, y: pos.y - ph / 2,
+            w: pw, h: ph,
+            image: window._pendingImage,
+            src: window._pendingImageSrc,
+            opacity: isNaN(opacity) ? 1 : opacity
         });
-    } else {
-        shapes.push(textShape);
         refreshShapeList();
         refreshAnimTargets();
         renderFrame(getCurrentTime());
     }
 });
+
+// ---- Image Upload Handler ----
+(function () {
+    const fileInput = document.getElementById('imageFileInput');
+    const previewInfo = document.getElementById('imagePreviewInfo');
+    const thumb = document.getElementById('imagePreviewThumb');
+    const wInput = document.getElementById('imgPlaceW');
+    const hInput = document.getElementById('imgPlaceH');
+    const keepAspect = document.getElementById('imgKeepAspect');
+
+    let naturalW = 0, naturalH = 0;
+
+    fileInput.addEventListener('change', e => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+            const dataUrl = ev.target.result;
+            const img = new Image();
+            img.onload = function () {
+                window._pendingImage = img;
+                window._pendingImageSrc = dataUrl;
+                naturalW = img.naturalWidth;
+                naturalH = img.naturalHeight;
+
+                // Fit within 400px max for default placement
+                let pw = naturalW, ph = naturalH;
+                const maxDim = 400;
+                if (pw > maxDim || ph > maxDim) {
+                    const scale = maxDim / Math.max(pw, ph);
+                    pw = Math.round(pw * scale);
+                    ph = Math.round(ph * scale);
+                }
+                wInput.value = pw;
+                hInput.value = ph;
+
+                thumb.src = dataUrl;
+                previewInfo.style.display = '';
+            };
+            img.src = dataUrl;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    wInput.addEventListener('input', () => {
+        if (keepAspect.checked && naturalW > 0) {
+            hInput.value = Math.round((parseInt(wInput.value) || 1) * naturalH / naturalW);
+        }
+    });
+    hInput.addEventListener('input', () => {
+        if (keepAspect.checked && naturalH > 0) {
+            wInput.value = Math.round((parseInt(hInput.value) || 1) * naturalW / naturalH);
+        }
+    });
+})();
 
 // Render KaTeX formula to an Image via html2canvas
 function renderKatexToImage(latex, fontSize, color) {
@@ -284,6 +369,7 @@ function refreshShapeList() {
         else if (s.type === 'circle') desc = `Circle #${s.id} r=${Math.round(s.r)}`;
         else if (s.type === 'rect') desc = `Rect #${s.id} ${s.w}×${s.h}`;
         else if (s.type === 'text') desc = `Text #${s.id} "${s.content.slice(0, 20)}${s.content.length > 20 ? '…' : ''}"`;
+        else if (s.type === 'image') desc = `Image #${s.id} ${s.w}×${s.h}`;
         div.innerHTML = `<span>${desc}</span><button class="del-btn" onclick="deleteShape(${s.id})">✕</button>`;
         el.appendChild(div);
     });
@@ -320,6 +406,7 @@ function refreshAnimTargets() {
         else if (s.type === 'circle') opt.textContent = `Circle #${s.id}`;
         else if (s.type === 'rect') opt.textContent = `Rect #${s.id}`;
         else if (s.type === 'text') return; // text shapes can't be animation targets
+        else if (s.type === 'image') return; // image shapes can't be animation targets
         sel.appendChild(opt);
     });
     if (prev && sel.querySelector(`option[value="${prev}"]`)) sel.value = prev;
@@ -539,6 +626,22 @@ window.deleteAnim = function (id) {
 };
 
 // ---- Rendering ----
+// Draw an arrowhead on a canvas context at (tx,ty) pointing in direction (angle)
+function drawArrowhead(c, tx, ty, angle, size, color) {
+    c.save();
+    c.translate(tx, ty);
+    c.rotate(angle);
+    c.fillStyle = color;
+    c.beginPath();
+    c.moveTo(0, 0);
+    c.lineTo(-size, -size * 0.45);
+    c.lineTo(-size * 0.7, 0);
+    c.lineTo(-size, size * 0.45);
+    c.closePath();
+    c.fill();
+    c.restore();
+}
+
 function drawShape(s) {
     ctx.strokeStyle = s.color;
     ctx.lineWidth = s.width;
@@ -548,10 +651,19 @@ function drawShape(s) {
         ctx.moveTo(s.x1, s.y1);
         ctx.lineTo(s.x2, s.y2);
         ctx.stroke();
+        if (s.arrow) {
+            const angle = Math.atan2(s.y2 - s.y1, s.x2 - s.x1);
+            drawArrowhead(ctx, s.x2, s.y2, angle, Math.max(12, s.width * 5), s.color);
+        }
     } else if (s.type === 'curve') {
         ctx.lineJoin = 'round';
         ctx.lineCap = 'round';
         drawSmoothCurve(ctx, s.controlPts);
+        if (s.arrow && s.points.length >= 2) {
+            const p1 = s.points[s.points.length - 2], p2 = s.points[s.points.length - 1];
+            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+            drawArrowhead(ctx, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+        }
     } else if (s.type === 'circle') {
         ctx.beginPath();
         ctx.arc(s.cx, s.cy, s.r, 0, Math.PI * 2);
@@ -567,6 +679,13 @@ function drawShape(s) {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(s.content, s.x, s.y);
+        }
+    } else if (s.type === 'image') {
+        if (s.image) {
+            ctx.save();
+            ctx.globalAlpha = s.opacity != null ? s.opacity : 1;
+            ctx.drawImage(s.image, s.x, s.y, s.w, s.h);
+            ctx.restore();
         }
     }
 }
@@ -1015,9 +1134,18 @@ function renderFrameWith(c, t, opts) {
         c.setLineDash([]);
         if (s.type === 'line') {
             c.beginPath(); c.moveTo(s.x1, s.y1); c.lineTo(s.x2, s.y2); c.stroke();
+            if (s.arrow) {
+                const angle = Math.atan2(s.y2 - s.y1, s.x2 - s.x1);
+                drawArrowhead(c, s.x2, s.y2, angle, Math.max(12, s.width * 5), s.color);
+            }
         } else if (s.type === 'curve') {
             c.lineJoin = 'round'; c.lineCap = 'round';
             drawSmoothCurve(c, s.controlPts);
+            if (s.arrow && s.points.length >= 2) {
+                const p1 = s.points[s.points.length - 2], p2 = s.points[s.points.length - 1];
+                const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                drawArrowhead(c, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+            }
         } else if (s.type === 'circle') {
             c.beginPath(); c.arc(s.cx, s.cy, s.r, 0, Math.PI * 2); c.stroke();
         } else if (s.type === 'rect') {
@@ -1031,6 +1159,13 @@ function renderFrameWith(c, t, opts) {
                 c.textAlign = 'center';
                 c.textBaseline = 'middle';
                 c.fillText(s.content, s.x, s.y);
+            }
+        } else if (s.type === 'image') {
+            if (s.image) {
+                c.save();
+                c.globalAlpha = s.opacity != null ? s.opacity : 1;
+                c.drawImage(s.image, s.x, s.y, s.w, s.h);
+                c.restore();
             }
         }
     });
