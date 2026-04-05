@@ -132,3 +132,114 @@ function resampleSmoothCurve(pts, stepsPerSeg) {
     }
     return result;
 }
+
+// ---- Hit-testing: find shape at point (within tolerance) ----
+function pointToSegmentDist(px, py, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const lenSq = dx * dx + dy * dy;
+    let t = lenSq === 0 ? 0 : clamp(((px - ax) * dx + (py - ay) * dy) / lenSq, 0, 1);
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+function hitTestShape(shape, px, py, tol) {
+    tol = tol || 8;
+    if (shape.type === 'line') {
+        return pointToSegmentDist(px, py, shape.x1, shape.y1, shape.x2, shape.y2) <= tol;
+    } else if (shape.type === 'curve' || shape.type === 'polyline') {
+        for (let i = 0; i < shape.points.length - 1; i++) {
+            if (pointToSegmentDist(px, py, shape.points[i].x, shape.points[i].y, shape.points[i + 1].x, shape.points[i + 1].y) <= tol) return true;
+        }
+        return false;
+    } else if (shape.type === 'circle') {
+        return Math.abs(Math.hypot(px - shape.cx, py - shape.cy) - shape.r) <= tol;
+    } else if (shape.type === 'rect') {
+        // Check proximity to each of the 4 edges
+        const { x, y, w, h } = shape;
+        if (pointToSegmentDist(px, py, x, y, x + w, y) <= tol) return true;
+        if (pointToSegmentDist(px, py, x + w, y, x + w, y + h) <= tol) return true;
+        if (pointToSegmentDist(px, py, x + w, y + h, x, y + h) <= tol) return true;
+        if (pointToSegmentDist(px, py, x, y + h, x, y) <= tol) return true;
+        return false;
+    } else if (shape.type === 'text') {
+        const hw = (shape.imgW || 60) / 2, hh = (shape.imgH || shape.fontSize) / 2;
+        return Math.abs(px - shape.x) <= hw + tol && Math.abs(py - shape.y) <= hh + tol;
+    } else if (shape.type === 'image') {
+        return px >= shape.x - tol && px <= shape.x + shape.w + tol && py >= shape.y - tol && py <= shape.y + shape.h + tol;
+    }
+    return false;
+}
+
+// Get bounding box of a shape { x, y, w, h }
+function getShapeBBox(s) {
+    if (s.type === 'line') {
+        const x = Math.min(s.x1, s.x2), y = Math.min(s.y1, s.y2);
+        return { x, y, w: Math.abs(s.x2 - s.x1), h: Math.abs(s.y2 - s.y1) };
+    } else if (s.type === 'curve' || s.type === 'polyline') {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        s.points.forEach(p => { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); });
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    } else if (s.type === 'circle') {
+        return { x: s.cx - s.r, y: s.cy - s.r, w: s.r * 2, h: s.r * 2 };
+    } else if (s.type === 'rect') {
+        return { x: s.x, y: s.y, w: s.w, h: s.h };
+    } else if (s.type === 'text') {
+        const hw = (s.imgW || 60) / 2, hh = (s.imgH || s.fontSize) / 2;
+        return { x: s.x - hw, y: s.y - hh, w: hw * 2, h: hh * 2 };
+    } else if (s.type === 'image') {
+        return { x: s.x, y: s.y, w: s.w, h: s.h };
+    }
+    return { x: 0, y: 0, w: 0, h: 0 };
+}
+
+// Get center of a shape
+function getShapeCenter(s) {
+    if (s.type === 'line') return { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 };
+    if (s.type === 'curve' || s.type === 'polyline') {
+        const bb = getShapeBBox(s);
+        return { x: bb.x + bb.w / 2, y: bb.y + bb.h / 2 };
+    }
+    if (s.type === 'circle') return { x: s.cx, y: s.cy };
+    if (s.type === 'rect') return { x: s.x + s.w / 2, y: s.y + s.h / 2 };
+    if (s.type === 'text') return { x: s.x, y: s.y };
+    if (s.type === 'image') return { x: s.x + s.w / 2, y: s.y + s.h / 2 };
+    return { x: 0, y: 0 };
+}
+
+// Move a shape by (dx, dy)
+function moveShape(s, dx, dy) {
+    if (s.type === 'line') {
+        s.x1 += dx; s.y1 += dy; s.x2 += dx; s.y2 += dy;
+    } else if (s.type === 'curve') {
+        s.controlPts.forEach(p => { p.x += dx; p.y += dy; });
+        s.points.forEach(p => { p.x += dx; p.y += dy; });
+    } else if (s.type === 'polyline') {
+        s.points.forEach(p => { p.x += dx; p.y += dy; });
+    } else if (s.type === 'circle') {
+        s.cx += dx; s.cy += dy;
+    } else if (s.type === 'rect') {
+        s.x += dx; s.y += dy;
+    } else if (s.type === 'text') {
+        s.x += dx; s.y += dy;
+    } else if (s.type === 'image') {
+        s.x += dx; s.y += dy;
+    }
+}
+
+// Deep copy a shape with a new id
+function duplicateShape(s) {
+    const newId = ++shapeIdCounter;
+    const clone = JSON.parse(JSON.stringify(s));
+    clone.id = newId;
+    // Re-create Image objects which can't be cloned via JSON
+    if (s.type === 'text' && s.image) {
+        const img = new Image();
+        img.src = s.image.src;
+        clone.image = img;
+    }
+    if (s.type === 'image' && s.image) {
+        const img = new Image();
+        img.src = s.src;
+        clone.image = img;
+    }
+    return clone;
+}

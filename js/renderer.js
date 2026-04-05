@@ -129,6 +129,28 @@ function renderFrame(t) {
     // Draw shapes
     shapes.forEach(drawShape);
 
+    // Draw selection highlight
+    if (selectedShapeId != null) {
+        const sel = shapes.find(s => s.id === selectedShapeId);
+        if (sel) {
+            const bb = getShapeBBox(sel);
+            const pad = 6;
+            ctx.save();
+            ctx.strokeStyle = '#e94560';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([6, 4]);
+            ctx.strokeRect(bb.x - pad, bb.y - pad, bb.w + pad * 2, bb.h + pad * 2);
+            // Corner handles
+            ctx.fillStyle = '#e94560';
+            const hs = 4;
+            [[bb.x - pad, bb.y - pad], [bb.x + bb.w + pad, bb.y - pad],
+            [bb.x - pad, bb.y + bb.h + pad], [bb.x + bb.w + pad, bb.y + bb.h + pad]].forEach(([hx, hy]) => {
+                ctx.fillRect(hx - hs, hy - hs, hs * 2, hs * 2);
+            });
+            ctx.restore();
+        }
+    }
+
     // Draw laser pointers
     animations.forEach(a => {
         const shape = shapes.find(s => s.id === a.shapeId);

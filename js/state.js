@@ -19,6 +19,11 @@ let drawStart = null;
 let curvePoints = []; // for freehand curve tool
 let polylinePoints = []; // for multi-segment line tool
 
+// Selection state
+let selectedShapeId = null;
+let isDraggingShape = false;
+let dragOffset = { x: 0, y: 0 };
+
 // Playback state
 let playing = false;
 let playStartReal = 0;  // performance.now() when play started

@@ -12,10 +12,30 @@ window.setTool = function (tool) {
     if (textPanel) textPanel.style.display = (tool === 'text') ? '' : 'none';
     const imagePanel = document.getElementById('imagePanel');
     if (imagePanel) imagePanel.style.display = (tool === 'image') ? '' : 'none';
-    canvas.style.cursor = (tool === 'text' || tool === 'image') ? 'crosshair' : (tool === 'line' || tool === 'curve' || tool === 'circle' || tool === 'rect') ? 'crosshair' : 'default';
+    const selectPanel = document.getElementById('selectPanel');
+    if (selectPanel) selectPanel.style.display = (tool === 'select' && selectedShapeId != null) ? '' : 'none';
+    canvas.style.cursor = (tool === 'select') ? 'default' : 'crosshair';
+    // Enable/disable arrow and multi-segment based on tool
+    const arrowEl = document.getElementById('arrowAtEnd');
+    const arrowLabel = arrowEl.parentElement;
+    const multiEl = document.getElementById('multiSegment');
+    const multiLabel = multiEl.parentElement;
+    const arrowApplicable = (tool === 'line' || tool === 'curve');
+    arrowEl.disabled = !arrowApplicable;
+    arrowLabel.style.opacity = arrowApplicable ? '1' : '0.4';
+    arrowLabel.style.pointerEvents = arrowApplicable ? '' : 'none';
+    const multiApplicable = (tool === 'line');
+    multiEl.disabled = !multiApplicable;
+    multiLabel.style.opacity = multiApplicable ? '1' : '0.4';
+    multiLabel.style.pointerEvents = multiApplicable ? '' : 'none';
     // Cancel any in-progress polyline when switching tools
     if (polylinePoints.length > 0) {
         polylinePoints = [];
+        renderFrame(getCurrentTime());
+    }
+    // Deselect when leaving select tool
+    if (tool !== 'select') {
+        selectedShapeId = null;
         renderFrame(getCurrentTime());
     }
 };
@@ -62,12 +82,18 @@ function finishPolyline() {
     renderFrame(getCurrentTime());
 }
 
-// ESC to cancel polyline, Enter to finish
+// ESC to cancel polyline/deselect, Enter to finish polyline
 document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && polylinePoints.length > 0) {
-        polylinePoints = [];
-        document.getElementById('polyDoneBtn').style.display = 'none';
-        renderFrame(getCurrentTime());
+    if (e.key === 'Escape') {
+        if (polylinePoints.length > 0) {
+            polylinePoints = [];
+            document.getElementById('polyDoneBtn').style.display = 'none';
+            renderFrame(getCurrentTime());
+        } else if (currentTool === 'select' && selectedShapeId != null) {
+            selectedShapeId = null;
+            document.getElementById('selectPanel').style.display = 'none';
+            renderFrame(getCurrentTime());
+        }
     }
     if (e.key === 'Enter' && polylinePoints.length >= 2 && isMultiSeg()) {
         finishPolyline();
@@ -110,10 +136,153 @@ canvas.addEventListener('mousemove', e => {
     }
 });
 
+// ---- Selection: properties panel ----
+function showSelPanel(s) {
+    const panel = document.getElementById('selectPanel');
+    if (!s) { panel.style.display = 'none'; return; }
+    panel.style.display = '';
+    document.getElementById('selectInfo').textContent = `${s.type.charAt(0).toUpperCase() + s.type.slice(1)} #${s.id}`;
+    document.getElementById('selColor').value = s.color || '#000000';
+    document.getElementById('selWidth').value = s.width || 2;
+
+    const arrowRow = document.getElementById('selArrowRow');
+    const textRows = document.getElementById('selTextRows');
+    const imgRows = document.getElementById('selImageRows');
+
+    arrowRow.style.display = (s.type === 'line' || s.type === 'curve' || s.type === 'polyline') ? '' : 'none';
+    if (s.arrow !== undefined) document.getElementById('selArrow').checked = s.arrow;
+
+    textRows.style.display = (s.type === 'text') ? '' : 'none';
+    if (s.type === 'text') document.getElementById('selFontSize').value = s.fontSize || 32;
+
+    imgRows.style.display = (s.type === 'image') ? '' : 'none';
+    if (s.type === 'image') {
+        document.getElementById('selImgW').value = s.w;
+        document.getElementById('selImgH').value = s.h;
+        document.getElementById('selImgOpacity').value = s.opacity != null ? s.opacity : 1;
+    }
+
+    // Show/hide width for non-text/image shapes
+    document.getElementById('selWidth').parentElement.style.display = (s.type === 'text' || s.type === 'image') ? 'none' : '';
+}
+
+window.applySelProps = function () {
+    const s = shapes.find(sh => sh.id === selectedShapeId);
+    if (!s) return;
+    s.color = document.getElementById('selColor').value;
+    if (s.type !== 'text' && s.type !== 'image') {
+        s.width = parseInt(document.getElementById('selWidth').value) || 2;
+    }
+    if (s.type === 'line' || s.type === 'curve' || s.type === 'polyline') {
+        s.arrow = document.getElementById('selArrow').checked;
+    }
+    if (s.type === 'text') {
+        s.fontSize = parseInt(document.getElementById('selFontSize').value) || 32;
+    }
+    if (s.type === 'image') {
+        s.w = parseInt(document.getElementById('selImgW').value) || s.w;
+        s.h = parseInt(document.getElementById('selImgH').value) || s.h;
+        s.opacity = parseFloat(document.getElementById('selImgOpacity').value);
+    }
+    refreshShapeList();
+    renderFrame(getCurrentTime());
+};
+
+window.duplicateSelected = function () {
+    const s = shapes.find(sh => sh.id === selectedShapeId);
+    if (!s) return;
+    const clone = duplicateShape(s);
+    moveShape(clone, 20, 20);
+    shapes.push(clone);
+    selectedShapeId = clone.id;
+    showSelPanel(clone);
+    refreshShapeList();
+    refreshAnimTargets();
+    renderFrame(getCurrentTime());
+};
+
+window.deleteSelected = function () {
+    if (selectedShapeId == null) return;
+    shapes = shapes.filter(s => s.id !== selectedShapeId);
+    animations = animations.filter(a => a.shapeId !== selectedShapeId);
+    selectedShapeId = null;
+    document.getElementById('selectPanel').style.display = 'none';
+    refreshShapeList();
+    refreshAnimTargets();
+    refreshAnimList();
+    renderFrame(getCurrentTime());
+};
+
+// ---- Selection: mouse handlers ----
+canvas.addEventListener('mousedown', e => {
+    if (currentTool !== 'select' || playing) return;
+    const pos = canvasCoords(e);
+    // Check shapes in reverse (topmost first)
+    let found = null;
+    for (let i = shapes.length - 1; i >= 0; i--) {
+        if (hitTestShape(shapes[i], pos.x, pos.y)) {
+            found = shapes[i];
+            break;
+        }
+    }
+    if (found) {
+        selectedShapeId = found.id;
+        isDraggingShape = true;
+        dragOffset = { x: pos.x, y: pos.y };
+        canvas.style.cursor = 'move';
+        showSelPanel(found);
+        // Update animation target dropdown to selected shape
+        const animTarget = document.getElementById('animTarget');
+        if (animTarget.querySelector(`option[value="${found.id}"]`)) {
+            animTarget.value = found.id;
+            updateDirectionOptions();
+        }
+    } else {
+        selectedShapeId = null;
+        isDraggingShape = false;
+        document.getElementById('selectPanel').style.display = 'none';
+    }
+    renderFrame(getCurrentTime());
+});
+
+canvas.addEventListener('mousemove', e => {
+    if (currentTool !== 'select' || !isDraggingShape || playing) return;
+    const pos = canvasCoords(e);
+    const s = shapes.find(sh => sh.id === selectedShapeId);
+    if (!s) return;
+    const dx = pos.x - dragOffset.x;
+    const dy = pos.y - dragOffset.y;
+    moveShape(s, dx, dy);
+    dragOffset = { x: pos.x, y: pos.y };
+    renderFrame(getCurrentTime());
+});
+
+canvas.addEventListener('mouseup', e => {
+    if (currentTool === 'select') {
+        isDraggingShape = false;
+        canvas.style.cursor = 'default';
+    }
+});
+
+// Delete/Escape shortcuts for selection
+document.addEventListener('keydown', e => {
+    if (currentTool === 'select' && selectedShapeId != null) {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            deleteSelected();
+            e.preventDefault();
+        }
+        // Ctrl/Cmd+D to duplicate
+        if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+            duplicateSelected();
+            e.preventDefault();
+        }
+    }
+});
+
 // ---- Drawing ----
 canvas.addEventListener('mousedown', e => {
     if (playing) return;
-    if (currentTool === 'text' || currentTool === 'image') return;
+    if (currentTool === 'select' || currentTool === 'text' || currentTool === 'image') return;
     if (isMultiSeg()) return; // polyline uses click, not drag
     isDrawing = true;
     drawStart = canvasCoords(e);
@@ -230,6 +399,7 @@ canvas.addEventListener('mouseleave', () => {
 // ---- Text Tool: click-to-place ----
 canvas.addEventListener('click', e => {
     if (playing) return;
+    if (currentTool === 'select') return;
 
     // ---- Polyline: add vertex on click ----
     if (isMultiSeg()) {
@@ -242,6 +412,26 @@ canvas.addEventListener('click', e => {
             document.getElementById('polyDoneBtn').style.display = '';
         }
         renderFrame(getCurrentTime());
+        // Draw in-progress polyline preview so it doesn't vanish between click and next mousemove
+        if (polylinePoints.length > 0) {
+            ctx.save();
+            ctx.strokeStyle = document.getElementById('strokeColor').value;
+            ctx.lineWidth = parseInt(document.getElementById('strokeWidth').value);
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(polylinePoints[0].x, polylinePoints[0].y);
+            for (let i = 1; i < polylinePoints.length; i++) {
+                ctx.lineTo(polylinePoints[i].x, polylinePoints[i].y);
+            }
+            ctx.stroke();
+            ctx.fillStyle = document.getElementById('strokeColor').value;
+            polylinePoints.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.restore();
+        }
         return;
     }
 
