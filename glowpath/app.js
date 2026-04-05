@@ -1,5 +1,5 @@
 // ============================================================
-// Laser Pointer Animator – app.js
+// GlowPath – app.js
 // ============================================================
 
 const canvas = document.getElementById('canvas');

@@ -1,5 +1,5 @@
 // ============================================================
-// Laser Pointer Animator – Initialization & UI Bindings
+// GlowPath – Initialization & UI Bindings
 // ============================================================
 
 // ---- UI Event Bindings ----

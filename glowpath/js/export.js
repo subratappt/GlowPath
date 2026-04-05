@@ -1,5 +1,5 @@
 // ============================================================
-// Laser Pointer Animator – Export (WebM & GIF)
+// GlowPath – Export (WebM & GIF)
 // ============================================================
 
 window.doExport = function () {
@@ -51,7 +51,7 @@ function exportWebM() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'laser-animation.webm';
+        a.download = 'glowpath-animation.webm';
         a.click();
         URL.revokeObjectURL(url);
         overlay.classList.remove('show');
@@ -169,7 +169,7 @@ window.exportGIF = function () {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'laser-animation.gif';
+        a.download = 'glowpath-animation.gif';
         a.click();
         URL.revokeObjectURL(url);
         overlay.classList.remove('show');

@@ -1,5 +1,5 @@
 // ============================================================
-// Laser Pointer Animator – Rendering
+// GlowPath – Rendering
 // ============================================================
 
 // Draw an arrowhead on a canvas context at (tx,ty) pointing in direction (angle)

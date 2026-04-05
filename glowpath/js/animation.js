@@ -1,5 +1,5 @@
 // ============================================================
-// Laser Pointer Animator – Animation Management & Playback
+// GlowPath – Animation Management & Playback
 // ============================================================
 
 // ---- Add Animation ----

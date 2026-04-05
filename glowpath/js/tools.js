@@ -1,5 +1,5 @@
 // ============================================================
-// Laser Pointer Animator – Drawing Tools & Input Handlers
+// GlowPath – Drawing Tools & Input Handlers
 // ============================================================
 
 // ---- Tool Selection ----

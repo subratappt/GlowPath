@@ -1,5 +1,5 @@
 // ============================================================
-// Laser Pointer Animator – Shape List & Animation Targets
+// GlowPath – Shape List & Animation Targets
 // ============================================================
 
 // ---- Shape List ----

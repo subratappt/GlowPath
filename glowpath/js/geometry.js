@@ -1,5 +1,5 @@
 // ============================================================
-// Laser Pointer Animator – Geometry & Path Helpers
+// GlowPath – Geometry & Path Helpers
 // ============================================================
 
 // ---- Shape path helpers ----

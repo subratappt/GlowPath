@@ -1,5 +1,5 @@
 // ============================================================
-// Laser Pointer Animator – State & Helpers
+// GlowPath – State & Helpers
 // ============================================================
 
 const canvas = document.getElementById('canvas');
