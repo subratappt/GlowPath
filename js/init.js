@@ -52,6 +52,11 @@ document.getElementById('exportFormat').addEventListener('change', e => {
 // Init visibility
 document.getElementById('gifQualityRow').style.display = 'none';
 
+// Arc bulge slider display
+document.getElementById('arcBulge').addEventListener('input', e => {
+    document.getElementById('arcBulgeVal').textContent = e.target.value;
+});
+
 // ---- Canvas Resize (fit to viewport) ----
 function resizeCanvas() {
     const main = document.getElementById('main');

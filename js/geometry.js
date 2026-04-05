@@ -8,6 +8,10 @@ function getShapePerimeter(shape) {
     if (shape.type === 'curve' || shape.type === 'polyline') return shape.dists[shape.dists.length - 1];
     if (shape.type === 'circle') return 2 * Math.PI * shape.r;
     if (shape.type === 'rect') return 2 * (shape.w + shape.h);
+    if (shape.type === 'arc') {
+        const a = getArcParams(shape);
+        return a ? Math.abs(a.sweep) * a.r : Math.hypot(shape.x2 - shape.x1, shape.y2 - shape.y1);
+    }
     return 0;
 }
 
@@ -163,6 +167,14 @@ function hitTestShape(shape, px, py, tol) {
     } else if (shape.type === 'text') {
         const hw = (shape.imgW || 60) / 2, hh = (shape.imgH || shape.fontSize) / 2;
         return Math.abs(px - shape.x) <= hw + tol && Math.abs(py - shape.y) <= hh + tol;
+    } else if (shape.type === 'arc') {
+        // Sample arc and check proximity to segments
+        const steps = 32;
+        for (let i = 0; i < steps; i++) {
+            const p1 = arcPos(shape, i / steps), p2 = arcPos(shape, (i + 1) / steps);
+            if (pointToSegmentDist(px, py, p1.x, p1.y, p2.x, p2.y) <= tol) return true;
+        }
+        return false;
     } else if (shape.type === 'image') {
         return px >= shape.x - tol && px <= shape.x + shape.w + tol && py >= shape.y - tol && py <= shape.y + shape.h + tol;
     }
@@ -185,6 +197,16 @@ function getShapeBBox(s) {
     } else if (s.type === 'text') {
         const hw = (s.imgW || 60) / 2, hh = (s.imgH || s.fontSize) / 2;
         return { x: s.x - hw, y: s.y - hh, w: hw * 2, h: hh * 2 };
+    } else if (s.type === 'arc') {
+        // Sample arc to find bounds
+        let minX = Math.min(s.x1, s.x2), minY = Math.min(s.y1, s.y2);
+        let maxX = Math.max(s.x1, s.x2), maxY = Math.max(s.y1, s.y2);
+        for (let i = 0; i <= 20; i++) {
+            const p = arcPos(s, i / 20);
+            minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+            maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+        }
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
     } else if (s.type === 'image') {
         return { x: s.x, y: s.y, w: s.w, h: s.h };
     }
@@ -194,6 +216,7 @@ function getShapeBBox(s) {
 // Get center of a shape
 function getShapeCenter(s) {
     if (s.type === 'line') return { x: (s.x1 + s.x2) / 2, y: (s.y1 + s.y2) / 2 };
+    if (s.type === 'arc') return arcPos(s, 0.5);
     if (s.type === 'curve' || s.type === 'polyline') {
         const bb = getShapeBBox(s);
         return { x: bb.x + bb.w / 2, y: bb.y + bb.h / 2 };
@@ -208,6 +231,8 @@ function getShapeCenter(s) {
 // Move a shape by (dx, dy)
 function moveShape(s, dx, dy) {
     if (s.type === 'line') {
+        s.x1 += dx; s.y1 += dy; s.x2 += dx; s.y2 += dy;
+    } else if (s.type === 'arc') {
         s.x1 += dx; s.y1 += dy; s.x2 += dx; s.y2 += dy;
     } else if (s.type === 'curve') {
         s.controlPts.forEach(p => { p.x += dx; p.y += dy; });
@@ -242,4 +267,128 @@ function duplicateShape(s) {
         clone.image = img;
     }
     return clone;
+}
+
+// ---- Arc helpers ----
+// Given an arc shape {x1,y1,x2,y2,bulge}, compute {cx,cy,r,startAngle,endAngle,sweep,ccw}
+function getArcParams(s) {
+    const mx = (s.x1 + s.x2) / 2, my = (s.y1 + s.y2) / 2;
+    const dx = s.x2 - s.x1, dy = s.y2 - s.y1;
+    const chordLen = Math.hypot(dx, dy);
+    if (chordLen < 1) return null;
+    const bulge = s.bulge || 0.5;
+    // Perpendicular offset from midpoint
+    const nx = -dy / chordLen, ny = dx / chordLen;
+    const sagitta = bulge * chordLen / 2;
+    // Find center of circle passing through both endpoints with given sagitta
+    const halfChord = chordLen / 2;
+    const r = (sagitta * sagitta + halfChord * halfChord) / (2 * Math.abs(sagitta));
+    const centerDist = r - Math.abs(sagitta);
+    const sign = sagitta >= 0 ? 1 : -1;
+    const cx = mx + nx * centerDist * sign;
+    const cy = my + ny * centerDist * sign;
+    const startAngle = Math.atan2(s.y1 - cy, s.x1 - cx);
+    const endAngle = Math.atan2(s.y2 - cy, s.x2 - cx);
+    // Determine sweep direction: bulge > 0 = ccw from start to end
+    const ccw = sagitta > 0;
+    let sweep = endAngle - startAngle;
+    if (ccw && sweep > 0) sweep -= 2 * Math.PI;
+    if (!ccw && sweep < 0) sweep += 2 * Math.PI;
+    return { cx, cy, r, startAngle, endAngle, sweep, ccw };
+}
+
+// Get position along arc at fraction t (0-1)
+function arcPos(shape, t) {
+    const a = getArcParams(shape);
+    if (!a) return { x: shape.x1, y: shape.y1 };
+    const angle = a.startAngle + a.sweep * t;
+    return { x: a.cx + a.r * Math.cos(angle), y: a.cy + a.r * Math.sin(angle) };
+}
+
+// Draw arc path on a context
+function drawArcPath(c, s) {
+    const a = getArcParams(s);
+    if (!a) {
+        c.beginPath(); c.moveTo(s.x1, s.y1); c.lineTo(s.x2, s.y2); c.stroke();
+        return;
+    }
+    c.beginPath();
+    c.arc(a.cx, a.cy, a.r, a.startAngle, a.endAngle, a.ccw);
+    c.stroke();
+}
+
+// ---- Snap-to-object: collect snap points from all shapes ----
+function getSnapPoints(shapeList) {
+    const pts = [];
+    shapeList.forEach(s => {
+        if (s.type === 'line') {
+            pts.push({ x: s.x1, y: s.y1 }, { x: s.x2, y: s.y2 });
+        } else if (s.type === 'curve' || s.type === 'polyline') {
+            if (s.points && s.points.length > 0) {
+                pts.push(s.points[0], s.points[s.points.length - 1]);
+            }
+            if (s.type === 'polyline' && s.points) {
+                s.points.forEach(p => pts.push(p));
+            }
+        } else if (s.type === 'circle') {
+            pts.push({ x: s.cx, y: s.cy });
+            // Cardinal points
+            pts.push({ x: s.cx, y: s.cy - s.r }, { x: s.cx + s.r, y: s.cy },
+                { x: s.cx, y: s.cy + s.r }, { x: s.cx - s.r, y: s.cy });
+        } else if (s.type === 'rect') {
+            pts.push({ x: s.x, y: s.y }, { x: s.x + s.w, y: s.y },
+                { x: s.x + s.w, y: s.y + s.h }, { x: s.x, y: s.y + s.h });
+            // Center
+            pts.push({ x: s.x + s.w / 2, y: s.y + s.h / 2 });
+        } else if (s.type === 'text') {
+            pts.push({ x: s.x, y: s.y });
+        } else if (s.type === 'arc') {
+            pts.push({ x: s.x1, y: s.y1 }, { x: s.x2, y: s.y2 });
+        } else if (s.type === 'image') {
+            pts.push({ x: s.x, y: s.y }, { x: s.x + s.w, y: s.y },
+                { x: s.x + s.w, y: s.y + s.h }, { x: s.x, y: s.y + s.h });
+        }
+    });
+    return pts;
+}
+
+function findNearestSnap(pos, shapeList, threshold) {
+    threshold = threshold || 10;
+    const pts = getSnapPoints(shapeList);
+    let best = null, bestD = threshold;
+    pts.forEach(p => {
+        const d = Math.hypot(pos.x - p.x, pos.y - p.y);
+        if (d < bestD) { bestD = d; best = { x: p.x, y: p.y }; }
+    });
+    // Snap to nearest point on circle edge
+    shapeList.forEach(s => {
+        if (s.type === 'circle') {
+            const dx = pos.x - s.cx, dy = pos.y - s.cy;
+            const d = Math.hypot(dx, dy);
+            if (d > 0) {
+                const ex = s.cx + (dx / d) * s.r;
+                const ey = s.cy + (dy / d) * s.r;
+                const edgeDist = Math.hypot(pos.x - ex, pos.y - ey);
+                if (edgeDist < bestD) { bestD = edgeDist; best = { x: Math.round(ex), y: Math.round(ey) }; }
+            }
+        }
+        // Snap to nearest point on rect edges
+        if (s.type === 'rect') {
+            const edges = [
+                [s.x, s.y, s.x + s.w, s.y],
+                [s.x + s.w, s.y, s.x + s.w, s.y + s.h],
+                [s.x + s.w, s.y + s.h, s.x, s.y + s.h],
+                [s.x, s.y + s.h, s.x, s.y]
+            ];
+            edges.forEach(([ax, ay, bx, by]) => {
+                const dx = bx - ax, dy = by - ay;
+                const lenSq = dx * dx + dy * dy;
+                const t = lenSq === 0 ? 0 : clamp(((pos.x - ax) * dx + (pos.y - ay) * dy) / lenSq, 0, 1);
+                const px = ax + t * dx, py = ay + t * dy;
+                const d = Math.hypot(pos.x - px, pos.y - py);
+                if (d < bestD) { bestD = d; best = { x: Math.round(px), y: Math.round(py) }; }
+            });
+        }
+    });
+    return best;
 }

@@ -55,9 +55,25 @@ function drawShape(s) {
     } else if (s.type === 'circle') {
         ctx.beginPath();
         ctx.arc(s.cx, s.cy, s.r, 0, Math.PI * 2);
+        if (s.fill) {
+            ctx.fillStyle = s.fill;
+            ctx.fill();
+        }
         ctx.stroke();
     } else if (s.type === 'rect') {
+        if (s.fill) {
+            ctx.fillStyle = s.fill;
+            ctx.fillRect(s.x, s.y, s.w, s.h);
+        }
         ctx.strokeRect(s.x, s.y, s.w, s.h);
+    } else if (s.type === 'arc') {
+        drawArcPath(ctx, s);
+        if (s.arrow) {
+            // Arrow at end of arc
+            const p1 = arcPos(s, 0.98), p2 = arcPos(s, 1);
+            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+            drawArrowhead(ctx, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+        }
     } else if (s.type === 'text') {
         if (s.isLatex && s.image) {
             ctx.drawImage(s.image, s.x - s.imgW / 2, s.y - s.imgH / 2);
@@ -151,6 +167,27 @@ function renderFrame(t) {
         }
     }
 
+    // Draw snap indicator
+    if (_snapIndicator) {
+        ctx.save();
+        ctx.strokeStyle = '#ff6600';
+        ctx.fillStyle = 'rgba(255, 102, 0, 0.25)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(_snapIndicator.x, _snapIndicator.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        // Crosshair
+        ctx.beginPath();
+        ctx.moveTo(_snapIndicator.x - 12, _snapIndicator.y);
+        ctx.lineTo(_snapIndicator.x + 12, _snapIndicator.y);
+        ctx.moveTo(_snapIndicator.x, _snapIndicator.y - 12);
+        ctx.lineTo(_snapIndicator.x, _snapIndicator.y + 12);
+        ctx.stroke();
+        ctx.restore();
+    }
+
     // Draw laser pointers
     animations.forEach(a => {
         const shape = shapes.find(s => s.id === a.shapeId);
@@ -163,7 +200,7 @@ function renderFrame(t) {
         const travelDist = elapsed * a.velocity;
 
         let progress, isLoop;
-        if (shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline') {
+        if (shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline' || shape.type === 'arc') {
             progress = clamp(travelDist / perim, 0, 1);
             isLoop = false;
         } else {
@@ -174,8 +211,9 @@ function renderFrame(t) {
 
         // Vanish at end
         if (a.vanishAtEnd) {
-            if ((shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline') && travelDist / perim >= 1) return;
-            if (shape.type !== 'line' && shape.type !== 'curve' && shape.type !== 'polyline' && travelDist / perim >= 1) return;
+            const isOpen = (shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline' || shape.type === 'arc');
+            if (isOpen && travelDist / perim >= 1) return;
+            if (!isOpen && travelDist / perim >= 1) return;
         }
 
         // Reverse direction
@@ -191,6 +229,9 @@ function renderFrame(t) {
             py = shape.y1 + (shape.y2 - shape.y1) * effProgress;
         } else if (shape.type === 'curve' || shape.type === 'polyline') {
             const pos = curvePos(shape, effProgress);
+            px = pos.x; py = pos.y;
+        } else if (shape.type === 'arc') {
+            const pos = arcPos(shape, effProgress);
             px = pos.x; py = pos.y;
         } else if (shape.type === 'circle') {
             const pos = circlePos(shape, effProgress);
@@ -220,21 +261,22 @@ function renderFrame(t) {
             ctx.moveTo(tx, ty);
             ctx.lineTo(px, py);
             ctx.stroke();
-        } else if (shape.type === 'curve' || shape.type === 'polyline') {
-            // Continuous stroke trail along curve/polyline
+        } else if (shape.type === 'curve' || shape.type === 'polyline' || shape.type === 'arc') {
+            // Continuous stroke trail along curve/polyline/arc
             const trailFrac = 0.1;
             const steps = 50;
             ctx.lineCap = 'round';
             ctx.lineJoin = 'round';
             ctx.setLineDash([]);
+            const posFn = shape.type === 'arc' ? arcPos : curvePos;
             for (let i = 0; i < steps - 1; i++) {
                 const frac = i / steps;
                 const fracNext = (i + 1) / steps;
                 const sign = (a.direction === 'inward') ? 1 : -1;
                 const tp = clamp(effProgress + sign * trailFrac * (1 - frac), 0, 1);
                 const tpNext = clamp(effProgress + sign * trailFrac * (1 - fracNext), 0, 1);
-                const tpos = curvePos(shape, tp);
-                const tposNext = curvePos(shape, tpNext);
+                const tpos = posFn(shape, tp);
+                const tposNext = posFn(shape, tpNext);
                 const alpha = 0.35 * fracNext;
                 const lw = a.pointerSize * (0.3 + 0.9 * fracNext);
                 ctx.strokeStyle = `rgba(${rc},${gc},${bc},${alpha})`;
@@ -325,9 +367,24 @@ function renderFrameWith(c, t, opts) {
                 drawArrowhead(c, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
             }
         } else if (s.type === 'circle') {
-            c.beginPath(); c.arc(s.cx, s.cy, s.r, 0, Math.PI * 2); c.stroke();
+            c.beginPath(); c.arc(s.cx, s.cy, s.r, 0, Math.PI * 2);
+            if (s.fill) { c.fillStyle = s.fill; c.fill(); }
+            c.stroke();
         } else if (s.type === 'rect') {
+            if (s.fill) { c.fillStyle = s.fill; c.fillRect(s.x, s.y, s.w, s.h); }
             c.strokeRect(s.x, s.y, s.w, s.h);
+        } else if (s.type === 'arc') {
+            const a = getArcParams(s);
+            if (a) {
+                c.beginPath(); c.arc(a.cx, a.cy, a.r, a.startAngle, a.endAngle, a.ccw); c.stroke();
+            } else {
+                c.beginPath(); c.moveTo(s.x1, s.y1); c.lineTo(s.x2, s.y2); c.stroke();
+            }
+            if (s.arrow) {
+                const p1 = arcPos(s, 0.98), p2 = arcPos(s, 1);
+                const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                drawArrowhead(c, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+            }
         } else if (s.type === 'text') {
             if (s.isLatex && s.image) {
                 c.drawImage(s.image, s.x - s.imgW / 2, s.y - s.imgH / 2);
@@ -360,15 +417,16 @@ function renderFrameWith(c, t, opts) {
         const travelDist = elapsed * a.velocity;
 
         let progress;
-        if (shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline') {
+        if (shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline' || shape.type === 'arc') {
             progress = clamp(travelDist / perim, 0, 1);
         } else {
             progress = (travelDist / perim) % 1;
         }
 
         if (a.vanishAtEnd) {
-            if ((shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline') && travelDist / perim >= 1) return;
-            if (shape.type !== 'line' && shape.type !== 'curve' && shape.type !== 'polyline' && travelDist / perim >= 1) return;
+            const isOpen = (shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline' || shape.type === 'arc');
+            if (isOpen && travelDist / perim >= 1) return;
+            if (!isOpen && travelDist / perim >= 1) return;
         }
 
         let effProgress = progress;
@@ -382,6 +440,9 @@ function renderFrameWith(c, t, opts) {
             py = shape.y1 + (shape.y2 - shape.y1) * effProgress;
         } else if (shape.type === 'curve' || shape.type === 'polyline') {
             const pos = curvePos(shape, effProgress);
+            px = pos.x; py = pos.y;
+        } else if (shape.type === 'arc') {
+            const pos = arcPos(shape, effProgress);
             px = pos.x; py = pos.y;
         } else if (shape.type === 'circle') {
             const pos = circlePos(shape, effProgress);
@@ -410,20 +471,21 @@ function renderFrameWith(c, t, opts) {
             c.moveTo(tx, ty);
             c.lineTo(px, py);
             c.stroke();
-        } else if (shape.type === 'curve' || shape.type === 'polyline') {
+        } else if (shape.type === 'curve' || shape.type === 'polyline' || shape.type === 'arc') {
             const trailFrac = 0.1;
             const steps = 50;
             c.lineCap = 'round';
             c.lineJoin = 'round';
             c.setLineDash([]);
+            const posFn = shape.type === 'arc' ? arcPos : curvePos;
             for (let i = 0; i < steps - 1; i++) {
                 const frac = i / steps;
                 const fracNext = (i + 1) / steps;
                 const sign = (a.direction === 'inward') ? 1 : -1;
                 const tp = clamp(effProgress + sign * trailFrac * (1 - frac), 0, 1);
                 const tpNext = clamp(effProgress + sign * trailFrac * (1 - fracNext), 0, 1);
-                const tpos = curvePos(shape, tp);
-                const tposNext = curvePos(shape, tpNext);
+                const tpos = posFn(shape, tp);
+                const tposNext = posFn(shape, tpNext);
                 const alpha = 0.35 * fracNext;
                 const lw = a.pointerSize * (0.3 + 0.9 * fracNext);
                 c.strokeStyle = `rgba(${rc},${gc},${bc},${alpha})`;

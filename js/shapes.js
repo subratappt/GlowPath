@@ -15,6 +15,7 @@ function refreshShapeList() {
         else if (s.type === 'curve') desc = `Curve #${s.id} (${s.points.length} pts)`;
         else if (s.type === 'circle') desc = `Circle #${s.id} r=${Math.round(s.r)}`;
         else if (s.type === 'rect') desc = `Rect #${s.id} ${s.w}×${s.h}`;
+        else if (s.type === 'arc') desc = `Arc #${s.id}`;
         else if (s.type === 'text') desc = `Text #${s.id} "${s.content.slice(0, 20)}${s.content.length > 20 ? '…' : ''}"`;
         else if (s.type === 'image') desc = `Image #${s.id} ${s.w}×${s.h}`;
         div.innerHTML = `<span>${desc}</span><button class="del-btn" onclick="deleteShape(${s.id})">✕</button>`;
@@ -53,6 +54,7 @@ function refreshAnimTargets() {
         else if (s.type === 'curve') opt.textContent = `Curve #${s.id}`;
         else if (s.type === 'circle') opt.textContent = `Circle #${s.id}`;
         else if (s.type === 'rect') opt.textContent = `Rect #${s.id}`;
+        else if (s.type === 'arc') opt.textContent = `Arc #${s.id}`;
         else if (s.type === 'text') return; // text shapes can't be animation targets
         else if (s.type === 'image') return; // image shapes can't be animation targets
         sel.appendChild(opt);
@@ -69,7 +71,7 @@ window.updateDirectionOptions = function () {
     if (!shape) return;
     const prevDir = sel.value;
     sel.innerHTML = '';
-    if (shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline') {
+    if (shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline' || shape.type === 'arc') {
         sel.innerHTML = '<option value="outward">Outward (start → end)</option><option value="inward">Inward (end → start)</option>';
     } else {
         sel.innerHTML = '<option value="clockwise">Clockwise</option><option value="anticlockwise">Anticlockwise</option>';

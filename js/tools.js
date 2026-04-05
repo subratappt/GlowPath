@@ -20,7 +20,7 @@ window.setTool = function (tool) {
     const arrowLabel = arrowEl.parentElement;
     const multiEl = document.getElementById('multiSegment');
     const multiLabel = multiEl.parentElement;
-    const arrowApplicable = (tool === 'line' || tool === 'curve');
+    const arrowApplicable = (tool === 'line' || tool === 'curve' || tool === 'arc');
     arrowEl.disabled = !arrowApplicable;
     arrowLabel.style.opacity = arrowApplicable ? '1' : '0.4';
     arrowLabel.style.pointerEvents = arrowApplicable ? '' : 'none';
@@ -28,6 +28,13 @@ window.setTool = function (tool) {
     multiEl.disabled = !multiApplicable;
     multiLabel.style.opacity = multiApplicable ? '1' : '0.4';
     multiLabel.style.pointerEvents = multiApplicable ? '' : 'none';
+    // Show fill color for circle/rect
+    const fillRow = document.getElementById('fillColor').parentElement;
+    const fillApplicable = (tool === 'circle' || tool === 'rect');
+    fillRow.style.opacity = fillApplicable ? '1' : '0.4';
+    fillRow.style.pointerEvents = fillApplicable ? '' : 'none';
+    // Show arc bulge slider
+    document.getElementById('arcBulgeRow').style.display = (tool === 'arc') ? '' : 'none';
     // Cancel any in-progress polyline when switching tools
     if (polylinePoints.length > 0) {
         polylinePoints = [];
@@ -36,6 +43,7 @@ window.setTool = function (tool) {
     // Deselect when leaving select tool
     if (tool !== 'select') {
         selectedShapeId = null;
+        _snapIndicator = null;
         renderFrame(getCurrentTime());
     }
 };
@@ -107,6 +115,10 @@ canvas.addEventListener('mousemove', e => {
         _polyMousePos = canvasCoords(e);
         const anchor = polylinePoints[polylinePoints.length - 1];
         if (e.ctrlKey || e.metaKey) _polyMousePos = snapAngle(anchor, _polyMousePos);
+        // Snap to existing shapes
+        const polyMoveSnap = findNearestSnap(_polyMousePos, shapes);
+        _snapIndicator = polyMoveSnap;
+        if (polyMoveSnap) _polyMousePos = polyMoveSnap;
         renderFrame(getCurrentTime());
         // Draw polyline preview
         ctx.save();
@@ -149,8 +161,15 @@ function showSelPanel(s) {
     const textRows = document.getElementById('selTextRows');
     const imgRows = document.getElementById('selImageRows');
 
-    arrowRow.style.display = (s.type === 'line' || s.type === 'curve' || s.type === 'polyline') ? '' : 'none';
+    arrowRow.style.display = (s.type === 'line' || s.type === 'curve' || s.type === 'polyline' || s.type === 'arc') ? '' : 'none';
     if (s.arrow !== undefined) document.getElementById('selArrow').checked = s.arrow;
+
+    const fillRow = document.getElementById('selFillRow');
+    fillRow.style.display = (s.type === 'circle' || s.type === 'rect') ? '' : 'none';
+    if (s.type === 'circle' || s.type === 'rect') {
+        document.getElementById('selFillEnabled').checked = !!s.fill;
+        document.getElementById('selFillColor').value = s.fill || '#ffffff';
+    }
 
     textRows.style.display = (s.type === 'text') ? '' : 'none';
     if (s.type === 'text') document.getElementById('selFontSize').value = s.fontSize || 32;
@@ -173,8 +192,11 @@ window.applySelProps = function () {
     if (s.type !== 'text' && s.type !== 'image') {
         s.width = parseInt(document.getElementById('selWidth').value) || 2;
     }
-    if (s.type === 'line' || s.type === 'curve' || s.type === 'polyline') {
+    if (s.type === 'line' || s.type === 'curve' || s.type === 'polyline' || s.type === 'arc') {
         s.arrow = document.getElementById('selArrow').checked;
+    }
+    if (s.type === 'circle' || s.type === 'rect') {
+        s.fill = document.getElementById('selFillEnabled').checked ? document.getElementById('selFillColor').value : null;
     }
     if (s.type === 'text') {
         s.fontSize = parseInt(document.getElementById('selFontSize').value) || 32;
@@ -279,6 +301,18 @@ document.addEventListener('keydown', e => {
     }
 });
 
+// ---- Snap indicator on hover (before drawing starts) ----
+canvas.addEventListener('mousemove', e => {
+    if (playing || isDrawing || currentTool === 'select' || currentTool === 'text' || currentTool === 'image') return;
+    if (isMultiSeg() && polylinePoints.length > 0) return; // polyline preview handles its own snap
+    const pos = canvasCoords(e);
+    const snap = findNearestSnap(pos, shapes);
+    if (snap !== _snapIndicator) {
+        _snapIndicator = snap;
+        renderFrame(getCurrentTime());
+    }
+});
+
 // ---- Drawing ----
 canvas.addEventListener('mousedown', e => {
     if (playing) return;
@@ -286,8 +320,14 @@ canvas.addEventListener('mousedown', e => {
     if (isMultiSeg()) return; // polyline uses click, not drag
     isDrawing = true;
     drawStart = canvasCoords(e);
+    // Snap start point to existing shapes
+    const startSnap = findNearestSnap(drawStart, shapes);
+    if (startSnap) { drawStart = startSnap; }
     if (currentTool === 'curve') {
         curvePoints = [drawStart];
+    }
+    if (currentTool === 'arc') {
+        // arc uses same drag pattern as line
     }
 });
 
@@ -326,17 +366,48 @@ canvas.addEventListener('mousemove', e => {
     if (currentTool === 'line') {
         let target = cur;
         if (e.ctrlKey || e.metaKey) target = snapAngle(drawStart, cur);
+        const snap = findNearestSnap(target, shapes);
+        _snapIndicator = snap;
+        if (snap) target = snap;
         ctx.beginPath();
         ctx.moveTo(drawStart.x, drawStart.y);
         ctx.lineTo(target.x, target.y);
         ctx.stroke();
     } else if (currentTool === 'circle') {
-        const r = dist(drawStart, cur);
+        const snap = findNearestSnap(cur, shapes);
+        _snapIndicator = snap;
+        const endPt = snap || cur;
+        const r = dist(drawStart, endPt);
         ctx.beginPath();
         ctx.arc(drawStart.x, drawStart.y, r, 0, Math.PI * 2);
         ctx.stroke();
     } else if (currentTool === 'rect') {
-        ctx.strokeRect(drawStart.x, drawStart.y, cur.x - drawStart.x, cur.y - drawStart.y);
+        const snap = findNearestSnap(cur, shapes);
+        _snapIndicator = snap;
+        let endPt = snap || cur;
+        if (e.ctrlKey || e.metaKey) {
+            const side = Math.max(Math.abs(endPt.x - drawStart.x), Math.abs(endPt.y - drawStart.y));
+            endPt = { x: drawStart.x + side * Math.sign(endPt.x - drawStart.x), y: drawStart.y + side * Math.sign(endPt.y - drawStart.y) };
+        }
+        ctx.strokeRect(drawStart.x, drawStart.y, endPt.x - drawStart.x, endPt.y - drawStart.y);
+    } else if (currentTool === 'arc') {
+        let target = cur;
+        const snap = findNearestSnap(cur, shapes);
+        _snapIndicator = snap;
+        if (snap) target = snap;
+        const bulge = parseFloat(document.getElementById('arcBulge').value) || 0.5;
+        const tempArc = { x1: drawStart.x, y1: drawStart.y, x2: target.x, y2: target.y, bulge };
+        const a = getArcParams(tempArc);
+        if (a) {
+            ctx.beginPath();
+            ctx.arc(a.cx, a.cy, a.r, a.startAngle, a.endAngle, a.ccw);
+            ctx.stroke();
+        } else {
+            ctx.beginPath();
+            ctx.moveTo(drawStart.x, drawStart.y);
+            ctx.lineTo(target.x, target.y);
+            ctx.stroke();
+        }
     }
     ctx.restore();
 });
@@ -344,7 +415,11 @@ canvas.addEventListener('mousemove', e => {
 canvas.addEventListener('mouseup', e => {
     if (!isDrawing || playing) return;
     isDrawing = false;
-    const end = canvasCoords(e);
+    _snapIndicator = null;
+    let end = canvasCoords(e);
+    // Snap end point to existing shapes
+    const endSnap = findNearestSnap(end, shapes);
+    if (endSnap) end = endSnap;
     const color = document.getElementById('strokeColor').value;
     const width = parseInt(document.getElementById('strokeWidth').value);
     const id = ++shapeIdCounter;
@@ -368,19 +443,36 @@ canvas.addEventListener('mouseup', e => {
         curvePoints = [];
     } else if (currentTool === 'line') {
         let endPt = end;
-        if (e.ctrlKey || e.metaKey) endPt = snapAngle(drawStart, end);
+        if (e.ctrlKey || e.metaKey) endPt = snapAngle(drawStart, endPt);
+        const lineSnap = findNearestSnap(endPt, shapes);
+        if (lineSnap) endPt = lineSnap;
         if (dist(drawStart, endPt) < 3) return;
         const arrow = document.getElementById('arrowAtEnd').checked;
         shapes.push({ type: 'line', id, x1: drawStart.x, y1: drawStart.y, x2: endPt.x, y2: endPt.y, color, width, arrow });
     } else if (currentTool === 'circle') {
         const r = dist(drawStart, end);
         if (r < 3) return;
-        shapes.push({ type: 'circle', id, cx: drawStart.x, cy: drawStart.y, r, color, width });
+        const fill = document.getElementById('fillEnabled').checked ? document.getElementById('fillColor').value : null;
+        shapes.push({ type: 'circle', id, cx: drawStart.x, cy: drawStart.y, r, color, width, fill });
     } else if (currentTool === 'rect') {
-        const w = Math.abs(end.x - drawStart.x), h = Math.abs(end.y - drawStart.y);
+        let rEnd = end;
+        if (e.ctrlKey || e.metaKey) {
+            const side = Math.max(Math.abs(rEnd.x - drawStart.x), Math.abs(rEnd.y - drawStart.y));
+            rEnd = { x: drawStart.x + side * Math.sign(rEnd.x - drawStart.x), y: drawStart.y + side * Math.sign(rEnd.y - drawStart.y) };
+        }
+        const w = Math.abs(rEnd.x - drawStart.x), h = Math.abs(rEnd.y - drawStart.y);
         if (w < 3 && h < 3) return;
-        const rx = Math.min(drawStart.x, end.x), ry = Math.min(drawStart.y, end.y);
-        shapes.push({ type: 'rect', id, x: rx, y: ry, w, h, color, width });
+        const rx = Math.min(drawStart.x, rEnd.x), ry = Math.min(drawStart.y, rEnd.y);
+        const fill = document.getElementById('fillEnabled').checked ? document.getElementById('fillColor').value : null;
+        shapes.push({ type: 'rect', id, x: rx, y: ry, w, h, color, width, fill });
+    } else if (currentTool === 'arc') {
+        let endPt = end;
+        const arcSnap = findNearestSnap(endPt, shapes);
+        if (arcSnap) endPt = arcSnap;
+        if (dist(drawStart, endPt) < 3) return;
+        const bulge = parseFloat(document.getElementById('arcBulge').value) || 0.5;
+        const arrow = document.getElementById('arrowAtEnd').checked;
+        shapes.push({ type: 'arc', id, x1: drawStart.x, y1: drawStart.y, x2: endPt.x, y2: endPt.y, bulge, color, width, arrow });
     }
 
     refreshShapeList();
@@ -389,6 +481,7 @@ canvas.addEventListener('mouseup', e => {
 });
 
 canvas.addEventListener('mouseleave', () => {
+    _snapIndicator = null;
     if (isDrawing && !playing) {
         isDrawing = false;
         curvePoints = [];
@@ -407,6 +500,10 @@ canvas.addEventListener('click', e => {
         if ((e.ctrlKey || e.metaKey) && polylinePoints.length > 0) {
             pos = snapAngle(polylinePoints[polylinePoints.length - 1], pos);
         }
+        // Snap to existing shapes
+        const polySnap = findNearestSnap(pos, shapes);
+        if (polySnap) pos = polySnap;
+        _snapIndicator = null;
         polylinePoints.push(pos);
         if (polylinePoints.length >= 2) {
             document.getElementById('polyDoneBtn').style.display = '';

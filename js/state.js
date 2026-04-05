@@ -24,6 +24,9 @@ let selectedShapeId = null;
 let isDraggingShape = false;
 let dragOffset = { x: 0, y: 0 };
 
+// Snap-to-object state
+let _snapIndicator = null; // {x, y} of current snap point or null
+
 // Playback state
 let playing = false;
 let playStartReal = 0;  // performance.now() when play started
