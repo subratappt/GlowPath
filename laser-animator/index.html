@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Laser Pointer Animator</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -319,6 +321,7 @@
                 <button class="btn btn-secondary" data-tool="curve" onclick="setTool('curve')">Curve</button>
                 <button class="btn btn-secondary" data-tool="circle" onclick="setTool('circle')">Circle</button>
                 <button class="btn btn-secondary" data-tool="rect" onclick="setTool('rect')">Rect</button>
+                <button class="btn btn-secondary" data-tool="text" onclick="setTool('text')">Text</button>
             </div>
             <div class="color-row" style="margin-top:8px;">
                 <label style="margin:0">Stroke:</label>
@@ -326,6 +329,21 @@
                 <label style="margin:0">Width:</label>
                 <input type="number" id="strokeWidth" value="2" min="1" max="20" style="width:60px">
             </div>
+        </div>
+
+        <!-- Text Options (shown when text tool active) -->
+        <div class="panel" id="textPanel" style="display:none">
+            <h3>Text Options</h3>
+            <label>Text Content</label>
+            <input type="text" id="textContent" placeholder="Hello or $$E=mc^2$$" value="">
+            <p style="font-size:11px;color:#777;margin-top:4px">Wrap LaTeX in <code>$$...$$</code> for math rendering</p>
+            <label>Font Size (px)</label>
+            <input type="number" id="textFontSize" value="32" min="8" max="200">
+            <label>Text Color</label>
+            <div class="color-row">
+                <input type="color" id="textColor" value="#000000">
+            </div>
+            <p style="font-size:11px;color:#888;margin-top:6px">Click on the canvas to place text</p>
         </div>
 
         <!-- Shapes -->
@@ -441,6 +459,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script>
         // Pre-fetch gif.worker.js as blob to avoid cross-origin worker issues
         window.gifWorkerBlobURL = null;

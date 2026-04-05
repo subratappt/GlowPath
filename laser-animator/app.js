@@ -67,11 +67,15 @@ window.setTool = function (tool) {
     document.querySelectorAll('[data-tool]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.tool === tool);
     });
+    const textPanel = document.getElementById('textPanel');
+    if (textPanel) textPanel.style.display = (tool === 'text') ? '' : 'none';
+    canvas.style.cursor = (tool === 'text') ? 'text' : 'crosshair';
 };
 
 // ---- Drawing ----
 canvas.addEventListener('mousedown', e => {
     if (playing) return;
+    if (currentTool === 'text') return; // text uses click, not drag
     isDrawing = true;
     drawStart = canvasCoords(e);
     if (currentTool === 'curve') {
@@ -178,6 +182,95 @@ canvas.addEventListener('mouseleave', () => {
     }
 });
 
+// ---- Text Tool: click-to-place ----
+canvas.addEventListener('click', e => {
+    if (playing || currentTool !== 'text') return;
+    const pos = canvasCoords(e);
+    const rawText = (document.getElementById('textContent').value || '').trim();
+    if (!rawText) return;
+    const fontSize = parseInt(document.getElementById('textFontSize').value) || 32;
+    const color = document.getElementById('textColor').value;
+    const id = ++shapeIdCounter;
+
+    // Check if it's LaTeX (wrapped in $$...$$)
+    const latexMatch = rawText.match(/^\$\$([\s\S]+)\$\$$/);
+    const isLatex = !!latexMatch;
+    const content = isLatex ? latexMatch[1] : rawText;
+
+    const textShape = { type: 'text', id, x: pos.x, y: pos.y, content, isLatex, fontSize, color };
+
+    if (isLatex) {
+        // Render KaTeX to image for canvas drawing
+        renderKatexToImage(content, fontSize, color).then(img => {
+            textShape.image = img;
+            textShape.imgW = img.width;
+            textShape.imgH = img.height;
+            shapes.push(textShape);
+            refreshShapeList();
+            refreshAnimTargets();
+            renderFrame(getCurrentTime());
+        });
+    } else {
+        shapes.push(textShape);
+        refreshShapeList();
+        refreshAnimTargets();
+        renderFrame(getCurrentTime());
+    }
+});
+
+// Render KaTeX formula to an Image via html2canvas
+function renderKatexToImage(latex, fontSize, color) {
+    return new Promise(async (resolve) => {
+        const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.left = '-9999px';
+        container.style.top = '0';
+        container.style.fontSize = fontSize + 'px';
+        container.style.color = color;
+        container.style.display = 'inline-block';
+        container.style.padding = '4px';
+        document.body.appendChild(container);
+
+        try {
+            katex.render(latex, container, { throwOnError: false, displayMode: true });
+        } catch (e) {
+            // If katex fails, fallback to plain text
+            container.textContent = latex;
+        }
+
+        await document.fonts.ready;
+
+        try {
+            const cvs = await html2canvas(container, {
+                backgroundColor: null,
+                scale: 2,
+                logging: false
+            });
+            document.body.removeChild(container);
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.src = cvs.toDataURL();
+        } catch (e) {
+            // Fallback: render as plain text on canvas
+            const rect = container.getBoundingClientRect();
+            document.body.removeChild(container);
+            const tc = document.createElement('canvas');
+            const tctx = tc.getContext('2d');
+            tctx.font = `${fontSize}px serif`;
+            const m = tctx.measureText(latex);
+            tc.width = Math.ceil(m.width) + 8;
+            tc.height = fontSize + 8;
+            tctx.font = `${fontSize}px serif`;
+            tctx.fillStyle = color;
+            tctx.textBaseline = 'top';
+            tctx.fillText(latex, 4, 4);
+            const fallbackImg = new Image();
+            fallbackImg.onload = () => resolve(fallbackImg);
+            fallbackImg.src = tc.toDataURL();
+        }
+    });
+}
+
 // ---- Shape List ----
 function refreshShapeList() {
     const el = document.getElementById('shapeList');
@@ -190,6 +283,7 @@ function refreshShapeList() {
         else if (s.type === 'curve') desc = `Curve #${s.id} (${s.points.length} pts)`;
         else if (s.type === 'circle') desc = `Circle #${s.id} r=${Math.round(s.r)}`;
         else if (s.type === 'rect') desc = `Rect #${s.id} ${s.w}×${s.h}`;
+        else if (s.type === 'text') desc = `Text #${s.id} "${s.content.slice(0, 20)}${s.content.length > 20 ? '…' : ''}"`;
         div.innerHTML = `<span>${desc}</span><button class="del-btn" onclick="deleteShape(${s.id})">✕</button>`;
         el.appendChild(div);
     });
@@ -225,6 +319,7 @@ function refreshAnimTargets() {
         else if (s.type === 'curve') opt.textContent = `Curve #${s.id}`;
         else if (s.type === 'circle') opt.textContent = `Circle #${s.id}`;
         else if (s.type === 'rect') opt.textContent = `Rect #${s.id}`;
+        else if (s.type === 'text') return; // text shapes can't be animation targets
         sel.appendChild(opt);
     });
     if (prev && sel.querySelector(`option[value="${prev}"]`)) sel.value = prev;
@@ -463,6 +558,16 @@ function drawShape(s) {
         ctx.stroke();
     } else if (s.type === 'rect') {
         ctx.strokeRect(s.x, s.y, s.w, s.h);
+    } else if (s.type === 'text') {
+        if (s.isLatex && s.image) {
+            ctx.drawImage(s.image, s.x - s.imgW / 2, s.y - s.imgH / 2);
+        } else if (!s.isLatex) {
+            ctx.font = `${s.fontSize}px sans-serif`;
+            ctx.fillStyle = s.color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(s.content, s.x, s.y);
+        }
     }
 }
 
@@ -917,6 +1022,16 @@ function renderFrameWith(c, t, opts) {
             c.beginPath(); c.arc(s.cx, s.cy, s.r, 0, Math.PI * 2); c.stroke();
         } else if (s.type === 'rect') {
             c.strokeRect(s.x, s.y, s.w, s.h);
+        } else if (s.type === 'text') {
+            if (s.isLatex && s.image) {
+                c.drawImage(s.image, s.x - s.imgW / 2, s.y - s.imgH / 2);
+            } else if (!s.isLatex) {
+                c.font = `${s.fontSize}px sans-serif`;
+                c.fillStyle = s.color;
+                c.textAlign = 'center';
+                c.textBaseline = 'middle';
+                c.fillText(s.content, s.x, s.y);
+            }
         }
     });
 
