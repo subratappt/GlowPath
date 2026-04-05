@@ -35,6 +35,14 @@ body {
     margin-bottom: 4px;
 }
 
+.credit {
+    text-align: center;
+    font-size: 11px;
+    color: #666;
+    padding: 10px 0 4px;
+    margin-top: auto;
+}
+
 .panel {
     background: #28283d;
     border: 1px solid #0f3460;
