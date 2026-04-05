@@ -13,12 +13,108 @@ window.setTool = function (tool) {
     const imagePanel = document.getElementById('imagePanel');
     if (imagePanel) imagePanel.style.display = (tool === 'image') ? '' : 'none';
     canvas.style.cursor = (tool === 'text' || tool === 'image') ? 'crosshair' : (tool === 'line' || tool === 'curve' || tool === 'circle' || tool === 'rect') ? 'crosshair' : 'default';
+    // Cancel any in-progress polyline when switching tools
+    if (polylinePoints.length > 0) {
+        polylinePoints = [];
+        renderFrame(getCurrentTime());
+    }
 };
+
+// Show/hide multi-segment hint
+document.getElementById('multiSegment').addEventListener('change', function () {
+    document.getElementById('multiSegHint').style.display = this.checked ? '' : 'none';
+    if (!this.checked && polylinePoints.length > 0) {
+        polylinePoints = [];
+        renderFrame(getCurrentTime());
+    }
+});
+
+// ---- Polyline helpers ----
+function isMultiSeg() {
+    return currentTool === 'line' && document.getElementById('multiSegment').checked;
+}
+
+function finishPolyline() {
+    if (polylinePoints.length < 2) { polylinePoints = []; return; }
+    // Remove duplicate last point added by click before dblclick
+    const last = polylinePoints[polylinePoints.length - 1];
+    const prev = polylinePoints[polylinePoints.length - 2];
+    if (last.x === prev.x && last.y === prev.y) {
+        polylinePoints.pop();
+    }
+    if (polylinePoints.length < 2) { polylinePoints = []; return; }
+    const color = document.getElementById('strokeColor').value;
+    const width = parseInt(document.getElementById('strokeWidth').value);
+    const arrow = document.getElementById('arrowAtEnd').checked;
+    const id = ++shapeIdCounter;
+    const pts = polylinePoints.slice();
+    // Pre-compute cumulative distances
+    const dists = [0];
+    for (let i = 1; i < pts.length; i++) {
+        dists.push(dists[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
+    }
+    shapes.push({ type: 'polyline', id, points: pts, dists, color, width, arrow });
+    polylinePoints = [];
+    refreshShapeList();
+    refreshAnimTargets();
+    renderFrame(getCurrentTime());
+}
+
+// ESC to cancel polyline
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && polylinePoints.length > 0) {
+        polylinePoints = [];
+        renderFrame(getCurrentTime());
+    }
+});
+
+// Double-click to finish polyline
+canvas.addEventListener('dblclick', e => {
+    if (playing) return;
+    if (isMultiSeg() && polylinePoints.length >= 2) {
+        finishPolyline();
+    }
+});
+
+// Track mouse position for polyline preview
+let _polyMousePos = null;
+canvas.addEventListener('mousemove', e => {
+    if (isMultiSeg() && polylinePoints.length > 0) {
+        _polyMousePos = canvasCoords(e);
+        renderFrame(getCurrentTime());
+        // Draw polyline preview
+        ctx.save();
+        ctx.strokeStyle = document.getElementById('strokeColor').value;
+        ctx.lineWidth = parseInt(document.getElementById('strokeWidth').value);
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(polylinePoints[0].x, polylinePoints[0].y);
+        for (let i = 1; i < polylinePoints.length; i++) {
+            ctx.lineTo(polylinePoints[i].x, polylinePoints[i].y);
+        }
+        ctx.stroke();
+        // Dashed line to cursor
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(polylinePoints[polylinePoints.length - 1].x, polylinePoints[polylinePoints.length - 1].y);
+        ctx.lineTo(_polyMousePos.x, _polyMousePos.y);
+        ctx.stroke();
+        // Draw vertex dots
+        ctx.fillStyle = document.getElementById('strokeColor').value;
+        polylinePoints.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        ctx.restore();
+    }
+});
 
 // ---- Drawing ----
 canvas.addEventListener('mousedown', e => {
     if (playing) return;
-    if (currentTool === 'text' || currentTool === 'image') return; // these use click, not drag
+    if (currentTool === 'text' || currentTool === 'image') return;
+    if (isMultiSeg()) return; // polyline uses click, not drag
     isDrawing = true;
     drawStart = canvasCoords(e);
     if (currentTool === 'curve') {
@@ -130,6 +226,14 @@ canvas.addEventListener('mouseleave', () => {
 // ---- Text Tool: click-to-place ----
 canvas.addEventListener('click', e => {
     if (playing) return;
+
+    // ---- Polyline: add vertex on click ----
+    if (isMultiSeg()) {
+        const pos = canvasCoords(e);
+        polylinePoints.push(pos);
+        renderFrame(getCurrentTime());
+        return;
+    }
 
     if (currentTool === 'text') {
         const pos = canvasCoords(e);

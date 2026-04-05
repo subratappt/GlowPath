@@ -50,6 +50,10 @@
             <label style="display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer">
                 <input type="checkbox" id="arrowAtEnd"> Arrow at end (line/curve)
             </label>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer">
+                <input type="checkbox" id="multiSegment"> Multi-segment line
+            </label>
+            <p id="multiSegHint" style="display:none;font-size:11px;color:#888;margin-top:4px">Click to add points. Double-click to finish. Esc to cancel.</p>
         </div>
 
         <!-- Text Options (shown when text tool active) -->
@@ -185,6 +189,11 @@
     <div id="main">
         <div id="canvasWrap">
             <canvas id="canvas" width="1024" height="1024"></canvas>
+            <div id="snapshotBar">
+                <button class="snap-btn" onclick="saveSnapshot('png')" title="Save as PNG">PNG</button>
+                <button class="snap-btn" onclick="saveSnapshot('svg')" title="Save as SVG">SVG</button>
+                <button class="snap-btn" onclick="saveSnapshot('webp')" title="Save as WebP">WebP</button>
+            </div>
         </div>
         <div id="playbar">
             <button class="btn btn-secondary" onclick="togglePlay()">▶</button>

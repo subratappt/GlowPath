@@ -40,6 +40,18 @@ function drawShape(s) {
             const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
             drawArrowhead(ctx, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
         }
+    } else if (s.type === 'polyline') {
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(s.points[0].x, s.points[0].y);
+        for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i].x, s.points[i].y);
+        ctx.stroke();
+        if (s.arrow && s.points.length >= 2) {
+            const p1 = s.points[s.points.length - 2], p2 = s.points[s.points.length - 1];
+            const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+            drawArrowhead(ctx, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+        }
     } else if (s.type === 'circle') {
         ctx.beginPath();
         ctx.arc(s.cx, s.cy, s.r, 0, Math.PI * 2);
@@ -129,7 +141,7 @@ function renderFrame(t) {
         const travelDist = elapsed * a.velocity;
 
         let progress, isLoop;
-        if (shape.type === 'line' || shape.type === 'curve') {
+        if (shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline') {
             progress = clamp(travelDist / perim, 0, 1);
             isLoop = false;
         } else {
@@ -138,16 +150,16 @@ function renderFrame(t) {
             isLoop = true;
         }
 
-        // Vanish at end (for lines/curves: at end; for loops: after one full revolution)
+        // Vanish at end
         if (a.vanishAtEnd) {
-            if ((shape.type === 'line' || shape.type === 'curve') && travelDist / perim >= 1) return;
-            if (shape.type !== 'line' && shape.type !== 'curve' && travelDist / perim >= 1) return;
+            if ((shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline') && travelDist / perim >= 1) return;
+            if (shape.type !== 'line' && shape.type !== 'curve' && shape.type !== 'polyline' && travelDist / perim >= 1) return;
         }
 
         // Reverse direction
         let effProgress = progress;
         if (a.direction === 'inward' || a.direction === 'anticlockwise') {
-            effProgress = shape.type === 'line' ? 1 - progress : 1 - progress;
+            effProgress = 1 - progress;
         }
 
         // Get position
@@ -155,7 +167,7 @@ function renderFrame(t) {
         if (shape.type === 'line') {
             px = shape.x1 + (shape.x2 - shape.x1) * effProgress;
             py = shape.y1 + (shape.y2 - shape.y1) * effProgress;
-        } else if (shape.type === 'curve') {
+        } else if (shape.type === 'curve' || shape.type === 'polyline') {
             const pos = curvePos(shape, effProgress);
             px = pos.x; py = pos.y;
         } else if (shape.type === 'circle') {
@@ -186,8 +198,8 @@ function renderFrame(t) {
             ctx.moveTo(tx, ty);
             ctx.lineTo(px, py);
             ctx.stroke();
-        } else if (shape.type === 'curve') {
-            // Continuous stroke trail along curve
+        } else if (shape.type === 'curve' || shape.type === 'polyline') {
+            // Continuous stroke trail along curve/polyline
             const trailFrac = 0.1;
             const steps = 50;
             ctx.lineCap = 'round';
@@ -279,6 +291,17 @@ function renderFrameWith(c, t, opts) {
                 const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
                 drawArrowhead(c, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
             }
+        } else if (s.type === 'polyline') {
+            c.lineJoin = 'round'; c.lineCap = 'round';
+            c.beginPath();
+            c.moveTo(s.points[0].x, s.points[0].y);
+            for (let i = 1; i < s.points.length; i++) c.lineTo(s.points[i].x, s.points[i].y);
+            c.stroke();
+            if (s.arrow && s.points.length >= 2) {
+                const p1 = s.points[s.points.length - 2], p2 = s.points[s.points.length - 1];
+                const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                drawArrowhead(c, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+            }
         } else if (s.type === 'circle') {
             c.beginPath(); c.arc(s.cx, s.cy, s.r, 0, Math.PI * 2); c.stroke();
         } else if (s.type === 'rect') {
@@ -315,15 +338,15 @@ function renderFrameWith(c, t, opts) {
         const travelDist = elapsed * a.velocity;
 
         let progress;
-        if (shape.type === 'line' || shape.type === 'curve') {
+        if (shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline') {
             progress = clamp(travelDist / perim, 0, 1);
         } else {
             progress = (travelDist / perim) % 1;
         }
 
         if (a.vanishAtEnd) {
-            if ((shape.type === 'line' || shape.type === 'curve') && travelDist / perim >= 1) return;
-            if (shape.type !== 'line' && shape.type !== 'curve' && travelDist / perim >= 1) return;
+            if ((shape.type === 'line' || shape.type === 'curve' || shape.type === 'polyline') && travelDist / perim >= 1) return;
+            if (shape.type !== 'line' && shape.type !== 'curve' && shape.type !== 'polyline' && travelDist / perim >= 1) return;
         }
 
         let effProgress = progress;
@@ -335,7 +358,7 @@ function renderFrameWith(c, t, opts) {
         if (shape.type === 'line') {
             px = shape.x1 + (shape.x2 - shape.x1) * effProgress;
             py = shape.y1 + (shape.y2 - shape.y1) * effProgress;
-        } else if (shape.type === 'curve') {
+        } else if (shape.type === 'curve' || shape.type === 'polyline') {
             const pos = curvePos(shape, effProgress);
             px = pos.x; py = pos.y;
         } else if (shape.type === 'circle') {
@@ -365,7 +388,7 @@ function renderFrameWith(c, t, opts) {
             c.moveTo(tx, ty);
             c.lineTo(px, py);
             c.stroke();
-        } else if (shape.type === 'curve') {
+        } else if (shape.type === 'curve' || shape.type === 'polyline') {
             const trailFrac = 0.1;
             const steps = 50;
             c.lineCap = 'round';

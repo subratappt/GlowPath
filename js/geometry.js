@@ -5,7 +5,7 @@
 // ---- Shape path helpers ----
 function getShapePerimeter(shape) {
     if (shape.type === 'line') return Math.hypot(shape.x2 - shape.x1, shape.y2 - shape.y1);
-    if (shape.type === 'curve') return shape.dists[shape.dists.length - 1];
+    if (shape.type === 'curve' || shape.type === 'polyline') return shape.dists[shape.dists.length - 1];
     if (shape.type === 'circle') return 2 * Math.PI * shape.r;
     if (shape.type === 'rect') return 2 * (shape.w + shape.h);
     return 0;

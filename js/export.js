@@ -1,6 +1,41 @@
 // ============================================================
-// GlowPath – Export (WebM & GIF)
+// GlowPath – Export (WebM & GIF) + Snapshot
 // ============================================================
+
+// ---- Snapshot ----
+window.saveSnapshot = function (format) {
+    const t = getCurrentTime();
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = W;
+    tmpCanvas.height = H;
+    const tmpCtx = tmpCanvas.getContext('2d');
+    renderFrameWith(tmpCtx, t, { noGrid: true });
+
+    if (format === 'svg') {
+        // Build an SVG wrapping the rasterized canvas as a data URI
+        const dataUrl = tmpCanvas.toDataURL('image/png');
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+  <image href="${dataUrl}" width="${W}" height="${H}"/>
+</svg>`;
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `glowpath-snapshot.svg`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } else {
+        const mimeType = format === 'webp' ? 'image/webp' : 'image/png';
+        tmpCanvas.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `glowpath-snapshot.${format}`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }, mimeType, 0.95);
+    }
+};
 
 window.doExport = function () {
     const format = document.getElementById('exportFormat').value;

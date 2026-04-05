@@ -17,6 +17,7 @@ let animIdCounter = 0;
 let isDrawing = false;
 let drawStart = null;
 let curvePoints = []; // for freehand curve tool
+let polylinePoints = []; // for multi-segment line tool
 
 // Playback state
 let playing = false;
