@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laser Pointer Animator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: 320px;
+            background: #16213e;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            border-right: 1px solid #0f3460;
+        }
+
+        #sidebar h2 {
+            font-size: 18px;
+            color: #e94560;
+            margin-bottom: 4px;
+        }
+
+        .panel {
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            border-radius: 8px;
+            padding: 12px;
+        }
+
+        .panel h3 {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+
+        .panel label {
+            display: block;
+            font-size: 12px;
+            margin-top: 6px;
+            color: #aaa;
+        }
+
+        .panel input[type="number"],
+        .panel input[type="text"],
+        .panel select {
+            width: 100%;
+            padding: 6px 8px;
+            margin-top: 2px;
+            background: #0f3460;
+            border: 1px solid #1a3a6e;
+            border-radius: 4px;
+            color: #e0e0e0;
+            font-size: 13px;
+        }
+
+        .panel input[type="range"] {
+            width: 100%;
+            margin-top: 4px;
+        }
+
+        .panel input[type="color"] {
+            width: 40px;
+            height: 28px;
+            border: none;
+            background: none;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+
+        .color-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
+        .btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .btn-primary {
+            background: #e94560;
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: #c73e54;
+        }
+
+        .btn-secondary {
+            background: #0f3460;
+            color: #e0e0e0;
+        }
+
+        .btn-secondary:hover {
+            background: #1a3a6e;
+        }
+
+        .btn-danger {
+            background: #6b1a1a;
+            color: #e0e0e0;
+        }
+
+        .btn-danger:hover {
+            background: #8b2a2a;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .btn.active {
+            outline: 2px solid #e94560;
+            outline-offset: 1px;
+        }
+
+        /* Shape list */
+        #shapeList {
+            max-height: 180px;
+            overflow-y: auto;
+            margin-top: 8px;
+        }
+
+        .shape-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px 8px;
+            background: #0f3460;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .shape-item:hover {
+            background: #1a3a6e;
+        }
+
+        .shape-item.selected {
+            outline: 1px solid #e94560;
+        }
+
+        .shape-item .del-btn {
+            background: none;
+            border: none;
+            color: #e94560;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0 4px;
+        }
+
+        /* Animation list */
+        #animList {
+            max-height: 140px;
+            overflow-y: auto;
+            margin-top: 8px;
+        }
+
+        .anim-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px 8px;
+            background: #0f3460;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            font-size: 12px;
+        }
+
+        .anim-item .del-btn {
+            background: none;
+            border: none;
+            color: #e94560;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0 4px;
+        }
+
+        /* Main canvas area */
+        #main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            position: relative;
+        }
+
+        #canvasWrap {
+            position: relative;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            box-shadow: 0 0 30px rgba(233, 69, 96, 0.15);
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        /* Playback bar */
+        #playbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+            background: #16213e;
+            padding: 10px 16px;
+            border-radius: 8px;
+        }
+
+        #playbar button {
+            font-size: 18px;
+        }
+
+        #timeline {
+            width: 400px;
+        }
+
+        #timeDisplay {
+            font-size: 13px;
+            font-family: monospace;
+            min-width: 80px;
+        }
+
+        /* Export overlay */
+        #exportOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #exportOverlay.show {
+            display: flex;
+        }
+
+        #exportBox {
+            background: #16213e;
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid #0f3460;
+            min-width: 300px;
+            text-align: center;
+        }
+
+        #exportBox h3 {
+            margin-bottom: 12px;
+        }
+
+        #exportProgress {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            margin: 12px 0;
+        }
+
+        #exportStatus {
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="sidebar">
+        <h2>🔴 Laser Animator</h2>
+
+        <!-- Canvas Settings -->
+        <div class="panel">
+            <h3>Canvas</h3>
+            <div class="color-row">
+                <label style="margin:0">Background:</label>
+                <input type="color" id="bgColor" value="#ffffff">
+                <span id="bgColorHex">#ffffff</span>
+            </div>
+        </div>
+
+        <!-- Drawing Tools -->
+        <div class="panel">
+            <h3>Drawing Tools</h3>
+            <div class="btn-row">
+                <button class="btn btn-secondary active" data-tool="line" onclick="setTool('line')">Line</button>
+                <button class="btn btn-secondary" data-tool="circle" onclick="setTool('circle')">Circle</button>
+                <button class="btn btn-secondary" data-tool="rect" onclick="setTool('rect')">Rect</button>
+            </div>
+            <div class="color-row" style="margin-top:8px;">
+                <label style="margin:0">Stroke:</label>
+                <input type="color" id="strokeColor" value="#000000">
+                <label style="margin:0">Width:</label>
+                <input type="number" id="strokeWidth" value="2" min="1" max="20" style="width:60px">
+            </div>
+        </div>
+
+        <!-- Shapes -->
+        <div class="panel">
+            <h3>Shapes</h3>
+            <div id="shapeList"></div>
+            <div class="btn-row">
+                <button class="btn btn-danger" onclick="clearAllShapes()">Clear All</button>
+            </div>
+        </div>
+
+        <!-- Laser Animation -->
+        <div class="panel">
+            <h3>Laser Animation</h3>
+            <label>Target Shape</label>
+            <select id="animTarget" onchange="updateDirectionOptions()"></select>
+
+            <label>Direction</label>
+            <select id="animDirection">
+                <option value="outward">Outward (start → end)</option>
+                <option value="inward">Inward (end → start)</option>
+            </select>
+
+            <label>Start Time (s)</label>
+            <input type="number" id="animStart" value="0" min="0" step="0.1">
+
+            <label>Velocity (px/s)</label>
+            <input type="number" id="animVelocity" value="200" min="10" max="5000" step="10">
+
+            <label>Pointer Color</label>
+            <div class="color-row">
+                <input type="color" id="laserColor" value="#ff0000">
+                <span id="laserColorHex">#ff0000</span>
+            </div>
+
+            <label>Glow Radius</label>
+            <input type="range" id="glowRadius" min="4" max="60" value="20">
+
+            <label>Pointer Size</label>
+            <input type="range" id="pointerSize" min="2" max="20" value="6">
+
+            <div class="check-row" style="margin-top:8px;">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                    <input type="checkbox" id="vanishAtEnd"> Vanish pointer at end
+                </label>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-primary" onclick="addAnimation()">Add Animation</button>
+            </div>
+        </div>
+
+        <!-- Animation List -->
+        <div class="panel">
+            <h3>Animations</h3>
+            <div id="animList"></div>
+        </div>
+
+        <!-- Timeline -->
+        <div class="panel">
+            <h3>Timeline Settings</h3>
+            <label>Duration (s)</label>
+            <input type="number" id="totalDuration" value="5" min="1" max="60" step="0.5">
+            <label>FPS</label>
+            <input type="number" id="fps" value="30" min="10" max="60">
+        </div>
+
+        <!-- Export -->
+        <div class="panel">
+            <h3>Export</h3>
+            <label>Format</label>
+            <select id="exportFormat">
+                <option value="webm" selected>WebM (smooth, recommended)</option>
+                <option value="gif">GIF (256 colors)</option>
+            </select>
+            <label>Resolution</label>
+            <select id="exportScale">
+                <option value="1024">1024×1024 (full)</option>
+                <option value="512" selected>512×512 (balanced)</option>
+                <option value="256">256×256 (small)</option>
+            </select>
+            <div id="gifQualityRow">
+                <label>GIF Quality (1=best, 20=fast)</label>
+                <input type="range" id="gifQuality" min="1" max="20" value="5">
+                <span id="gifQualityVal">5</span>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-primary" onclick="doExport()">Export</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="main">
+        <div id="canvasWrap">
+            <canvas id="canvas" width="1024" height="1024"></canvas>
+        </div>
+        <div id="playbar">
+            <button class="btn btn-secondary" onclick="togglePlay()">▶</button>
+            <button class="btn btn-secondary" onclick="stopAnim()">⏹</button>
+            <input type="range" id="timeline" min="0" max="5000" value="0" step="1">
+            <span id="timeDisplay">0.000s</span>
+        </div>
+    </div>
+
+    <!-- Export Overlay -->
+    <div id="exportOverlay">
+        <div id="exportBox">
+            <h3 id="exportTitle">Exporting…</h3>
+            <progress id="exportProgress" value="0" max="100"></progress>
+            <div id="exportStatus">Preparing frames…</div>
+            <button class="btn btn-secondary" onclick="cancelExport()" id="cancelExportBtn">Cancel</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+    <script>
+        // Pre-fetch gif.worker.js as blob to avoid cross-origin worker issues
+        window.gifWorkerBlobURL = null;
+        fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js')
+            .then(r => r.blob())
+            .then(blob => {
+                window.gifWorkerBlobURL = URL.createObjectURL(blob);
+            });
+    </script>
+    <script src="app.js"></script>
+</body>
+
+</html>
