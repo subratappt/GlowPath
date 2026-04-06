@@ -162,6 +162,10 @@ function showSelPanel(s) {
     if (!s) { panel.style.display = 'none'; return; }
     panel.style.display = '';
     document.getElementById('selectInfo').textContent = `${s.type.charAt(0).toUpperCase() + s.type.slice(1)} #${s.id}`;
+    // Position
+    const pos = getShapePosition(s);
+    document.getElementById('selPosX').value = Math.round(pos.x);
+    document.getElementById('selPosY').value = Math.round(pos.y);
     document.getElementById('selColor').value = s.color || '#000000';
     document.getElementById('selWidth').value = s.width || 2;
 
@@ -211,6 +215,11 @@ window.applySelProps = function () {
     const s = shapes.find(sh => sh.id === selectedShapeId);
     if (!s) return;
     saveState();
+    // Position
+    const oldPos = getShapePosition(s);
+    const newX = parseFloat(document.getElementById('selPosX').value) || 0;
+    const newY = parseFloat(document.getElementById('selPosY').value) || 0;
+    moveShape(s, newX - oldPos.x, newY - oldPos.y);
     s.color = document.getElementById('selColor').value;
     if (s.type !== 'text' && s.type !== 'image') {
         s.width = parseInt(document.getElementById('selWidth').value) || 2;

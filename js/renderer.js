@@ -177,18 +177,25 @@ function renderFrame(t) {
     ctx.fillStyle = getBgColor();
     ctx.fillRect(0, 0, W, H);
 
-    // Draw grid (subtle)
+    const showScale = document.getElementById('showScale') && document.getElementById('showScale').checked;
     const bgIsLight = isLightColor(getBgColor());
-    ctx.strokeStyle = bgIsLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.03)';
-    ctx.lineWidth = 0.5;
-    ctx.setLineDash([]);
-    const gridStep = 64;
-    for (let x = 0; x <= W; x += gridStep) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+
+    if (showScale) {
+        // Draw grid on main canvas
+        ctx.strokeStyle = bgIsLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 0.5;
+        ctx.setLineDash([]);
+        const gridStep = 64;
+        for (let x = gridStep; x < W; x += gridStep) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+        }
+        for (let y = gridStep; y < H; y += gridStep) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+        }
     }
-    for (let y = 0; y <= H; y += gridStep) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-    }
+
+    // Redraw external rulers
+    drawRulers();
 
     // Draw shapes (filtered by visibility timing)
     shapes.forEach(s => {
@@ -363,6 +370,140 @@ function renderFrame(t) {
 
         drawLaserPointer(px, py, a.color, a.glowRadius, a.pointerSize);
     });
+}
+
+// ---- Draw rulers on the external rulerCanvas ----
+function drawRulers() {
+    const rc = document.getElementById('rulerCanvas');
+    if (!rc) return;
+    const showScale = document.getElementById('showScale') && document.getElementById('showScale').checked;
+    const rctx = rc.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    rctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const totalW = rc.width / dpr;
+    const totalH = rc.height / dpr;
+    rctx.clearRect(0, 0, totalW, totalH);
+
+    if (!showScale) return;
+
+    const rulerSize = 28;
+    const bgIsLight = isLightColor(getBgColor());
+    const rulerBg = bgIsLight ? '#f0f0f0' : '#1a1a2e';
+    const rulerText = bgIsLight ? '#444' : '#aaa';
+    const rulerLine = bgIsLight ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.2)';
+    const tickInterval = 64;
+    const labelInterval = 128;
+    const rulerPad = 20;
+
+    // Calculate scale: how many CSS px per canvas unit
+    const canvasDisplaySize = totalW - rulerSize * 2 - rulerPad * 2;
+    const scale = canvasDisplaySize / W;
+    const offset = rulerSize + rulerPad; // where canvas area starts
+
+    // Top ruler
+    rctx.fillStyle = rulerBg;
+    rctx.fillRect(offset, rulerPad, canvasDisplaySize, rulerSize);
+    rctx.strokeStyle = rulerLine;
+    rctx.fillStyle = rulerText;
+    rctx.font = '12px sans-serif';
+    rctx.lineWidth = 0.5;
+    rctx.setLineDash([]);
+    rctx.textBaseline = 'top';
+    for (let v = 0; v <= W; v += tickInterval) {
+        const x = offset + v * scale;
+        const isLabel = (v % labelInterval === 0);
+        const tickH = isLabel ? rulerSize - 4 : rulerSize * 0.35;
+        rctx.beginPath();
+        rctx.moveTo(x, rulerPad + rulerSize - tickH);
+        rctx.lineTo(x, rulerPad + rulerSize);
+        rctx.stroke();
+        if (isLabel && v > 0) {
+            rctx.textAlign = (v === W) ? 'right' : 'center';
+            rctx.fillText(v, x, rulerPad + 3);
+        }
+    }
+    rctx.beginPath(); rctx.moveTo(offset, rulerPad + rulerSize); rctx.lineTo(offset + canvasDisplaySize, rulerPad + rulerSize); rctx.stroke();
+
+    // Bottom ruler
+    const bottomY = offset + canvasDisplaySize;
+    rctx.fillStyle = rulerBg;
+    rctx.fillRect(offset, bottomY, canvasDisplaySize, rulerSize);
+    rctx.strokeStyle = rulerLine;
+    rctx.fillStyle = rulerText;
+    rctx.textBaseline = 'bottom';
+    rctx.textAlign = 'center';
+    rctx.beginPath(); rctx.moveTo(offset, bottomY); rctx.lineTo(offset + canvasDisplaySize, bottomY); rctx.stroke();
+    for (let v = 0; v <= W; v += tickInterval) {
+        const x = offset + v * scale;
+        const isLabel = (v % labelInterval === 0);
+        const tickH = isLabel ? rulerSize - 4 : rulerSize * 0.35;
+        rctx.beginPath();
+        rctx.moveTo(x, bottomY);
+        rctx.lineTo(x, bottomY + tickH);
+        rctx.stroke();
+        if (isLabel && v > 0) {
+            rctx.textAlign = (v === W) ? 'right' : 'center';
+            rctx.fillText(v, x, bottomY + rulerSize - 3);
+        }
+    }
+
+    // Left ruler
+    rctx.fillStyle = rulerBg;
+    rctx.fillRect(rulerPad, offset, rulerSize, canvasDisplaySize);
+    rctx.strokeStyle = rulerLine;
+    rctx.fillStyle = rulerText;
+    rctx.beginPath(); rctx.moveTo(rulerPad + rulerSize, offset); rctx.lineTo(rulerPad + rulerSize, offset + canvasDisplaySize); rctx.stroke();
+    for (let v = 0; v <= H; v += tickInterval) {
+        const y = offset + v * scale;
+        const isLabel = (v % labelInterval === 0);
+        const tickW = isLabel ? rulerSize - 4 : rulerSize * 0.35;
+        rctx.beginPath();
+        rctx.moveTo(rulerPad + rulerSize - tickW, y);
+        rctx.lineTo(rulerPad + rulerSize, y);
+        rctx.stroke();
+        if (isLabel && v > 0) {
+            rctx.save();
+            rctx.translate(rulerPad + rulerSize / 2, y);
+            rctx.rotate(-Math.PI / 2);
+            rctx.textBaseline = 'middle';
+            rctx.textAlign = (v === H) ? 'right' : 'center';
+            rctx.fillText(v, 0, 0);
+            rctx.restore();
+        }
+    }
+
+    // Right ruler
+    const rightX = offset + canvasDisplaySize;
+    rctx.fillStyle = rulerBg;
+    rctx.fillRect(rightX, offset, rulerSize, canvasDisplaySize);
+    rctx.strokeStyle = rulerLine;
+    rctx.fillStyle = rulerText;
+    rctx.beginPath(); rctx.moveTo(rightX, offset); rctx.lineTo(rightX, offset + canvasDisplaySize); rctx.stroke();
+    for (let v = 0; v <= H; v += tickInterval) {
+        const y = offset + v * scale;
+        const isLabel = (v % labelInterval === 0);
+        const tickW = isLabel ? rulerSize - 4 : rulerSize * 0.35;
+        rctx.beginPath();
+        rctx.moveTo(rightX, y);
+        rctx.lineTo(rightX + tickW, y);
+        rctx.stroke();
+        if (isLabel && v > 0) {
+            rctx.save();
+            rctx.translate(rightX + rulerSize / 2, y);
+            rctx.rotate(Math.PI / 2);
+            rctx.textBaseline = 'middle';
+            rctx.textAlign = (v === H) ? 'left' : 'center';
+            rctx.fillText(v, 0, 0);
+            rctx.restore();
+        }
+    }
+
+    // Corner squares
+    rctx.fillStyle = rulerBg;
+    rctx.fillRect(rulerPad, rulerPad, rulerSize, rulerSize);
+    rctx.fillRect(rightX, rulerPad, rulerSize, rulerSize);
+    rctx.fillRect(rulerPad, bottomY, rulerSize, rulerSize);
+    rctx.fillRect(rightX, bottomY, rulerSize, rulerSize);
 }
 
 // ---- Render frame to a specific context (for export) ----

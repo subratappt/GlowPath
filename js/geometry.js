@@ -229,6 +229,15 @@ function getShapeCenter(s) {
 }
 
 // Move a shape by (dx, dy)
+function getShapePosition(s) {
+    if (s.type === 'line' || s.type === 'arc') return { x: s.x1, y: s.y1 };
+    if (s.type === 'curve') return { x: s.points[0].x, y: s.points[0].y };
+    if (s.type === 'polyline') return { x: s.points[0].x, y: s.points[0].y };
+    if (s.type === 'circle') return { x: s.cx, y: s.cy };
+    if (s.type === 'rect' || s.type === 'text' || s.type === 'image') return { x: s.x, y: s.y };
+    return { x: 0, y: 0 };
+}
+
 function moveShape(s, dx, dy) {
     if (s.type === 'line') {
         s.x1 += dx; s.y1 += dy; s.x2 += dx; s.y2 += dy;

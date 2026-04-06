@@ -296,11 +296,23 @@ body.dark #shapeList {
     border: 1px solid #ddd;
     border-radius: 4px;
     box-shadow: 0 0 20px rgba(0, 0, 0, 0.08);
+    display: inline-block;
+    overflow: visible;
 }
 
-canvas {
+#rulerCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 2;
+}
+
+canvas#canvas {
     display: block;
     cursor: crosshair;
+    position: relative;
+    z-index: 1;
 }
 
 /* Snapshot bar */

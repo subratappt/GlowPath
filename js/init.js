@@ -28,6 +28,11 @@ document.getElementById('bgColor').addEventListener('input', e => {
     if (!playing) renderFrame(getCurrentTime());
 });
 
+document.getElementById('showScale').addEventListener('change', () => {
+    drawRulers();
+    if (!playing) renderFrame(getCurrentTime());
+});
+
 document.getElementById('gifQuality').addEventListener('input', e => {
     document.getElementById('gifQualityVal').textContent = e.target.value;
 });
@@ -60,10 +65,25 @@ document.getElementById('arcBulge').addEventListener('input', e => {
 // ---- Canvas Resize (fit to viewport) ----
 function resizeCanvas() {
     const main = document.getElementById('main');
+    const rulerSize = 28;
+    const rulerPad = 20; // extra padding for edge labels
     const maxSize = Math.min(main.clientWidth - 32, main.clientHeight - 80);
-    const size = Math.min(maxSize, 768);
-    canvas.style.width = size + 'px';
-    canvas.style.height = size + 'px';
+    const canvasDisplaySize = Math.min(maxSize - rulerSize * 2 - rulerPad * 2, 768);
+    const totalSize = canvasDisplaySize + rulerSize * 2 + rulerPad * 2;
+    canvas.style.width = canvasDisplaySize + 'px';
+    canvas.style.height = canvasDisplaySize + 'px';
+    canvas.style.position = 'absolute';
+    canvas.style.left = (rulerSize + rulerPad) + 'px';
+    canvas.style.top = (rulerSize + rulerPad) + 'px';
+    const rc = document.getElementById('rulerCanvas');
+    rc.width = totalSize * (window.devicePixelRatio || 1);
+    rc.height = totalSize * (window.devicePixelRatio || 1);
+    rc.style.width = totalSize + 'px';
+    rc.style.height = totalSize + 'px';
+    const wrap = document.getElementById('canvasWrap');
+    wrap.style.width = totalSize + 'px';
+    wrap.style.height = totalSize + 'px';
+    drawRulers();
 }
 window.addEventListener('resize', resizeCanvas);
 
