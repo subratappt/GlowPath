@@ -153,8 +153,10 @@
                 <div class="color-row">
                     <input type="color" id="selColor" value="#000000">
                 </div>
-                <label>Stroke Width</label>
-                <input type="number" id="selWidth" value="2" min="1" max="20">
+                <div id="selWidthRow">
+                    <label>Stroke Width</label>
+                    <input type="number" id="selWidth" value="2" min="1" max="20">
+                </div>
                 <div id="selArrowRow" style="margin-top:6px">
                     <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
                         <input type="checkbox" id="selArrow"> Arrow at end
@@ -178,7 +180,49 @@
                     <label>Opacity</label>
                     <input type="range" id="selImgOpacity" min="0" max="1" step="0.05" value="1" style="width:100%">
                 </div>
-                <div class="btn-row" style="margin-top:8px">
+                <hr style="margin:10px 0;border:none;border-top:1px solid #e0e0e0">
+                <h3 style="margin-top:4px">Visibility Timing</h3>
+                <div style="display:flex;gap:6px">
+                    <div style="flex:1">
+                        <label>Start (s)</label>
+                        <input type="number" id="selVisStart" value="0" min="0" step="0.1">
+                    </div>
+                    <div style="flex:1">
+                        <label>End (s)</label>
+                        <input type="number" id="selVisEnd" value="" min="0" step="0.1" placeholder="∞">
+                    </div>
+                </div>
+                <h3 style="margin-top:8px">Color Timing</h3>
+                <div style="font-size:10px;color:#999;display:flex;gap:4px;padding:0 0 2px 38px">
+                    <span style="flex:1">Start (s)</span><span style="flex:1">End (s)</span>
+                </div>
+                <div id="colorStopsContainer">
+                    <div class="color-stop-row" style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
+                        <input type="color" class="cs-color" value="#ff0000"
+                            style="width:32px;height:24px;padding:0;border:1px solid #ccc;cursor:pointer">
+                        <input type="number" class="cs-start" value="" min="0" step="0.1" style="flex:1"
+                            placeholder="Start">
+                        <input type="number" class="cs-end" value="" min="0" step="0.1" style="flex:1"
+                            placeholder="End">
+                    </div>
+                    <div class="color-stop-row" style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
+                        <input type="color" class="cs-color" value="#00ff00"
+                            style="width:32px;height:24px;padding:0;border:1px solid #ccc;cursor:pointer">
+                        <input type="number" class="cs-start" value="" min="0" step="0.1" style="flex:1"
+                            placeholder="Start">
+                        <input type="number" class="cs-end" value="" min="0" step="0.1" style="flex:1"
+                            placeholder="End">
+                    </div>
+                    <div class="color-stop-row" style="display:flex;gap:4px;align-items:center;margin-bottom:4px">
+                        <input type="color" class="cs-color" value="#0000ff"
+                            style="width:32px;height:24px;padding:0;border:1px solid #ccc;cursor:pointer">
+                        <input type="number" class="cs-start" value="" min="0" step="0.1" style="flex:1"
+                            placeholder="Start">
+                        <input type="number" class="cs-end" value="" min="0" step="0.1" style="flex:1"
+                            placeholder="End">
+                    </div>
+                </div>
+                <div class="btn-row" style="margin-top:10px">
                     <button class="btn btn-secondary" onclick="applySelProps()">Apply</button>
                     <button class="btn btn-secondary" onclick="duplicateSelected()">Copy</button>
                     <button class="btn btn-danger" onclick="deleteSelected()">Delete</button>

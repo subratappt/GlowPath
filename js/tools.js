@@ -190,7 +190,21 @@ function showSelPanel(s) {
     }
 
     // Show/hide width for non-text/image shapes
-    document.getElementById('selWidth').parentElement.style.display = (s.type === 'text' || s.type === 'image') ? 'none' : '';
+    document.getElementById('selWidthRow').style.display = (s.type === 'text' || s.type === 'image') ? 'none' : '';
+
+    // Visibility timing
+    document.getElementById('selVisStart').value = s.visStart != null ? s.visStart : 0;
+    document.getElementById('selVisEnd').value = s.visEnd != null ? s.visEnd : '';
+
+    // Color timing stops
+    const stops = s.colorStops || [];
+    const stopRows = document.querySelectorAll('#colorStopsContainer .color-stop-row');
+    stopRows.forEach((row, i) => {
+        const stop = stops[i];
+        row.querySelector('.cs-color').value = stop ? stop.color : (i === 0 ? (s.color || '#000000') : '#000000');
+        row.querySelector('.cs-start').value = stop && stop.start != null ? stop.start : '';
+        row.querySelector('.cs-end').value = stop && stop.end != null ? stop.end : '';
+    });
 }
 
 window.applySelProps = function () {
@@ -215,6 +229,25 @@ window.applySelProps = function () {
         s.h = parseInt(document.getElementById('selImgH').value) || s.h;
         s.opacity = parseFloat(document.getElementById('selImgOpacity').value);
     }
+    // Visibility timing
+    s.visStart = parseFloat(document.getElementById('selVisStart').value) || 0;
+    const visEndVal = document.getElementById('selVisEnd').value.trim();
+    s.visEnd = visEndVal !== '' ? parseFloat(visEndVal) : null;
+    // Color timing stops
+    const stopRows = document.querySelectorAll('#colorStopsContainer .color-stop-row');
+    s.colorStops = [];
+    stopRows.forEach(row => {
+        const color = row.querySelector('.cs-color').value;
+        const startVal = row.querySelector('.cs-start').value.trim();
+        const endVal = row.querySelector('.cs-end').value.trim();
+        if (startVal !== '' && endVal !== '') {
+            s.colorStops.push({ color, start: parseFloat(startVal), end: parseFloat(endVal) });
+        }
+    });
+    // Clear legacy single-stop properties
+    delete s.colorEnd;
+    delete s.colorStartTime;
+    delete s.colorEndTime;
     refreshShapeList();
     renderFrame(getCurrentTime());
 };
@@ -301,6 +334,8 @@ canvas.addEventListener('mouseup', e => {
 
 // Delete/Escape shortcuts for selection
 document.addEventListener('keydown', e => {
+    const tag = document.activeElement && document.activeElement.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (currentTool === 'select' && selectedShapeId != null) {
         if (e.key === 'Delete' || e.key === 'Backspace') {
             deleteSelected();

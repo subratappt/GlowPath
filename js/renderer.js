@@ -2,6 +2,54 @@
 // GlowPath – Rendering
 // ============================================================
 
+// Helper: check if shape is visible at time t
+function isShapeVisible(s, t) {
+    const start = s.visStart != null ? s.visStart : 0;
+    if (t < start) return false;
+    if (s.visEnd != null && t > s.visEnd) return false;
+    return true;
+}
+
+// Helper: interpolate hex color
+function lerpColor(c1, c2, frac) {
+    const r1 = parseInt(c1.slice(1, 3), 16), g1 = parseInt(c1.slice(3, 5), 16), b1 = parseInt(c1.slice(5, 7), 16);
+    const r2 = parseInt(c2.slice(1, 3), 16), g2 = parseInt(c2.slice(3, 5), 16), b2 = parseInt(c2.slice(5, 7), 16);
+    const r = Math.round(r1 + (r2 - r1) * frac);
+    const g = Math.round(g1 + (g2 - g1) * frac);
+    const b = Math.round(b1 + (b2 - b1) * frac);
+    return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+// Helper: get effective color at time t
+function getEffectiveColor(s, t) {
+    // Multi-stop color timing
+    if (s.colorStops && s.colorStops.length > 0) {
+        const stops = s.colorStops.slice().sort((a, b) => a.start - b.start);
+        // Find active stop or interpolate
+        for (let i = 0; i < stops.length; i++) {
+            const stop = stops[i];
+            const prevColor = i > 0 ? stops[i - 1].color : s.color;
+            if (t < stop.start) return prevColor;
+            if (t >= stop.start && t < stop.end) {
+                const frac = (t - stop.start) / (stop.end - stop.start);
+                return lerpColor(prevColor, stop.color, frac);
+            }
+            // t >= stop.end: continue to next stop
+        }
+        // After all stops ended, revert to default color
+        return s.color;
+    }
+    // Legacy single-stop fallback
+    if (!s.colorEnd || s.colorEnd === s.color) return s.color;
+    const t0 = s.colorStartTime != null ? s.colorStartTime : 0;
+    const t1 = s.colorEndTime != null ? s.colorEndTime : null;
+    if (t1 == null || t1 <= t0) return s.color;
+    if (t <= t0) return s.color;
+    if (t >= t1) return s.colorEnd;
+    const frac = (t - t0) / (t1 - t0);
+    return lerpColor(s.color, s.colorEnd, frac);
+}
+
 // Draw an arrowhead on a canvas context at (tx,ty) pointing in direction (angle)
 function drawArrowhead(c, tx, ty, angle, size, color) {
     c.save();
@@ -18,8 +66,9 @@ function drawArrowhead(c, tx, ty, angle, size, color) {
     c.restore();
 }
 
-function drawShape(s) {
-    ctx.strokeStyle = s.color;
+function drawShape(s, t) {
+    const effColor = (t != null) ? getEffectiveColor(s, t) : s.color;
+    ctx.strokeStyle = effColor;
     ctx.lineWidth = s.width;
     ctx.setLineDash([]);
     if (s.type === 'line') {
@@ -29,7 +78,7 @@ function drawShape(s) {
         ctx.stroke();
         if (s.arrow) {
             const angle = Math.atan2(s.y2 - s.y1, s.x2 - s.x1);
-            drawArrowhead(ctx, s.x2, s.y2, angle, Math.max(12, s.width * 5), s.color);
+            drawArrowhead(ctx, s.x2, s.y2, angle, Math.max(12, s.width * 5), effColor);
         }
     } else if (s.type === 'curve') {
         ctx.lineJoin = 'round';
@@ -38,7 +87,7 @@ function drawShape(s) {
         if (s.arrow && s.points.length >= 2) {
             const p1 = s.points[s.points.length - 2], p2 = s.points[s.points.length - 1];
             const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-            drawArrowhead(ctx, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+            drawArrowhead(ctx, p2.x, p2.y, angle, Math.max(12, s.width * 5), effColor);
         }
     } else if (s.type === 'polyline') {
         ctx.lineJoin = 'round';
@@ -50,7 +99,7 @@ function drawShape(s) {
         if (s.arrow && s.points.length >= 2) {
             const p1 = s.points[s.points.length - 2], p2 = s.points[s.points.length - 1];
             const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-            drawArrowhead(ctx, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+            drawArrowhead(ctx, p2.x, p2.y, angle, Math.max(12, s.width * 5), effColor);
         }
     } else if (s.type === 'circle') {
         ctx.beginPath();
@@ -69,17 +118,16 @@ function drawShape(s) {
     } else if (s.type === 'arc') {
         drawArcPath(ctx, s);
         if (s.arrow) {
-            // Arrow at end of arc
             const p1 = arcPos(s, 0.98), p2 = arcPos(s, 1);
             const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-            drawArrowhead(ctx, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+            drawArrowhead(ctx, p2.x, p2.y, angle, Math.max(12, s.width * 5), effColor);
         }
     } else if (s.type === 'text') {
         if (s.isLatex && s.image) {
             ctx.drawImage(s.image, s.x - s.imgW / 2, s.y - s.imgH / 2);
         } else if (!s.isLatex) {
             ctx.font = `${s.fontSize}px sans-serif`;
-            ctx.fillStyle = s.color;
+            ctx.fillStyle = effColor;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(s.content, s.x, s.y);
@@ -142,8 +190,10 @@ function renderFrame(t) {
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
     }
 
-    // Draw shapes
-    shapes.forEach(drawShape);
+    // Draw shapes (filtered by visibility timing)
+    shapes.forEach(s => {
+        if (isShapeVisible(s, t)) drawShape(s, t);
+    });
 
     // Draw selection highlight
     if (selectedShapeId != null) {
@@ -336,16 +386,18 @@ function renderFrameWith(c, t, opts) {
         }
     }
 
-    // Shapes
+    // Shapes (filtered by visibility + color timing)
     shapes.forEach(s => {
-        c.strokeStyle = s.color;
+        if (!isShapeVisible(s, t)) return;
+        const effColor = getEffectiveColor(s, t);
+        c.strokeStyle = effColor;
         c.lineWidth = s.width;
         c.setLineDash([]);
         if (s.type === 'line') {
             c.beginPath(); c.moveTo(s.x1, s.y1); c.lineTo(s.x2, s.y2); c.stroke();
             if (s.arrow) {
                 const angle = Math.atan2(s.y2 - s.y1, s.x2 - s.x1);
-                drawArrowhead(c, s.x2, s.y2, angle, Math.max(12, s.width * 5), s.color);
+                drawArrowhead(c, s.x2, s.y2, angle, Math.max(12, s.width * 5), effColor);
             }
         } else if (s.type === 'curve') {
             c.lineJoin = 'round'; c.lineCap = 'round';
@@ -353,7 +405,7 @@ function renderFrameWith(c, t, opts) {
             if (s.arrow && s.points.length >= 2) {
                 const p1 = s.points[s.points.length - 2], p2 = s.points[s.points.length - 1];
                 const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                drawArrowhead(c, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+                drawArrowhead(c, p2.x, p2.y, angle, Math.max(12, s.width * 5), effColor);
             }
         } else if (s.type === 'polyline') {
             c.lineJoin = 'round'; c.lineCap = 'round';
@@ -364,7 +416,7 @@ function renderFrameWith(c, t, opts) {
             if (s.arrow && s.points.length >= 2) {
                 const p1 = s.points[s.points.length - 2], p2 = s.points[s.points.length - 1];
                 const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                drawArrowhead(c, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+                drawArrowhead(c, p2.x, p2.y, angle, Math.max(12, s.width * 5), effColor);
             }
         } else if (s.type === 'circle') {
             c.beginPath(); c.arc(s.cx, s.cy, s.r, 0, Math.PI * 2);
@@ -383,14 +435,14 @@ function renderFrameWith(c, t, opts) {
             if (s.arrow) {
                 const p1 = arcPos(s, 0.98), p2 = arcPos(s, 1);
                 const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-                drawArrowhead(c, p2.x, p2.y, angle, Math.max(12, s.width * 5), s.color);
+                drawArrowhead(c, p2.x, p2.y, angle, Math.max(12, s.width * 5), effColor);
             }
         } else if (s.type === 'text') {
             if (s.isLatex && s.image) {
                 c.drawImage(s.image, s.x - s.imgW / 2, s.y - s.imgH / 2);
             } else if (!s.isLatex) {
                 c.font = `${s.fontSize}px sans-serif`;
-                c.fillStyle = s.color;
+                c.fillStyle = effColor;
                 c.textAlign = 'center';
                 c.textBaseline = 'middle';
                 c.fillText(s.content, s.x, s.y);

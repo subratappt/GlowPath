@@ -490,6 +490,10 @@ body.dark .btn-danger:hover {
     background: #8b2a2a;
 }
 
+body.dark .color-stop-row input[type="color"] {
+    border-color: #1a3a6e;
+}
+
 body.dark .shape-item,
 body.dark .anim-item {
     background: #0f3460;
