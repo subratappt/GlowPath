@@ -79,7 +79,7 @@ window.togglePlay = function () {
         playing = false;
         playOffset = getCurrentTime();
         cancelAnimationFrame(animFrameId);
-        document.querySelector('#playbar button').textContent = '▶';
+        document.getElementById('playBtn').textContent = '▶';
     } else {
         // play
         const cur = parseFloat(document.getElementById('timeline').value) / 1000;
@@ -90,7 +90,7 @@ window.togglePlay = function () {
         }
         playing = true;
         playStartReal = performance.now();
-        document.querySelector('#playbar button').textContent = '⏸';
+        document.getElementById('playBtn').textContent = '⏸';
         playLoop();
     }
 };
@@ -99,7 +99,7 @@ window.stopAnim = function () {
     playing = false;
     playOffset = 0;
     cancelAnimationFrame(animFrameId);
-    document.querySelector('#playbar button').textContent = '▶';
+    document.getElementById('playBtn').textContent = '▶';
     document.getElementById('timeline').value = 0;
     document.getElementById('timeDisplay').textContent = '0.000s';
     renderFrame(0);
